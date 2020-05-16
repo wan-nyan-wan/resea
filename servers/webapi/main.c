@@ -89,7 +89,6 @@ static void process_request(struct client *client, const char *method,
     }
 
     ASSERT(m.type == FS_READ_REPLY_MSG);
-    INFO("str = '%s' %d", m.fs_read_reply.data, m.fs_read_reply.len);
     write_response(client, "200 OK", m.fs_read_reply.data);
     free(m.fs_read_reply.data);
 }
