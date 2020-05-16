@@ -55,11 +55,43 @@ static void process_request(struct client *client, const char *method,
                             const char *path) {
     TRACE("%s %s", method, path);
     bool get = !strcmp(method, "GET");
-    if (get && !strcmp(path, "/")) {
-        write_response(client, "200 OK", INDEX_HTML);
-    } else {
+    if (!get) {
         write_response(client, "404 Not Found", "");
+        return;
     }
+
+    task_t fs_server = ipc_lookup("fatfs");
+    struct message m;
+    m.type = FS_OPEN_MSG;
+    m.fs_open.path = (char *) path;
+    m.fs_open.len = strlen(path) + 1; // including the trailing '\0'
+    error_t err = ipc_call(fs_server, &m);
+    if (IS_ERROR(err)) {
+        WARN("failed to open a file: '%s' (%s)", path, err2str(err));
+        const char *msg =
+            (err == ERR_NOT_FOUND) ? "404 Not Found" : "500 Internal Server Error";
+        write_response(client, msg, "");
+        return;
+    }
+
+    ASSERT(m.type == FS_OPEN_REPLY_MSG);
+    handle_t handle = m.fs_open_reply.handle;
+
+    m.type = FS_READ_MSG;
+    m.fs_read.handle = handle;
+    m.fs_read.offset = 0;
+    m.fs_read.len = 128;
+    err = ipc_call(fs_server, &m);
+    if (IS_ERROR(err)) {
+        WARN("failed to read a file: %s", err2str(err));
+        write_response(client, "500 Internal Server Error", "");
+        return;
+    }
+
+    ASSERT(m.type == FS_READ_REPLY_MSG);
+    INFO("str = '%s' %d", m.fs_read_reply.data, m.fs_read_reply.len);
+    write_response(client, "200 OK", m.fs_read_reply.data);
+    free(m.fs_read_reply.data);
 }
 
 /// Handles incoming data.
