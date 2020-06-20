@@ -1,5 +1,4 @@
 #include <arch.h>
-#include <memory.h>
 #include <printk.h>
 #include <string.h>
 #include "vm.h"

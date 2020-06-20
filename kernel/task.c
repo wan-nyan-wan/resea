@@ -5,7 +5,6 @@
 #include <string.h>
 #include "ipc.h"
 #include "kdebug.h"
-#include "memory.h"
 #include "message.h"
 #include "printk.h"
 #include "syscall.h"
@@ -275,6 +274,11 @@ void handle_irq(unsigned irq) {
     if (owner) {
         notify(owner, NOTIFY_IRQ);
     }
+}
+
+/// The page fault handler. It calls a pager and updates the page table.
+NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip) {
+    task_exit(EXP_INVALID_MEMORY_ACCESS);
 }
 
 void task_dump(void) {

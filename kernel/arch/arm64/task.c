@@ -2,7 +2,6 @@
 #include <string.h>
 #include <main.h>
 #include <task.h>
-#include <memory.h>
 #include "asm.h"
 
 void arm64_start_task(void);

@@ -2,10 +2,13 @@
 #include <string.h>
 #include "main.h"
 #include "kdebug.h"
-#include "memory.h"
 #include "printk.h"
 #include "syscall.h"
 #include "task.h"
+
+// Defined in arch.
+extern uint8_t __bootelf[];
+extern uint8_t __bootelf_end[];
 
 static struct bootelf_header *locate_bootelf_header(void) {
     const offset_t offsets[] = {

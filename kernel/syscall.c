@@ -4,7 +4,6 @@
 #include <types.h>
 #include "ipc.h"
 #include "kdebug.h"
-#include "memory.h"
 #include "printk.h"
 #include "syscall.h"
 #include "task.h"

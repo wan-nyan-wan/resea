@@ -2,10 +2,10 @@
 #define __TASK_H__
 
 #include <config.h>
+#include <types.h>
 #include <arch.h>
 #include <message.h>
-#include <types.h>
-#include "memory.h"
+#include <list.h>
 
 /// The context switching time slice (# of ticks).
 #define TASK_TIME_SLICE ((CONFIG_TASK_TIME_SLICE_MS * TICK_HZ) / 1000)
@@ -45,7 +45,7 @@ struct task {
     /// Number of references to this task.
     unsigned ref_count;
     /// The page table.
-    struct vm vm;
+    paddr_t page_table;
     /// The pager task. When a page fault or an exception (e.g. divide by zero)
     /// occurred, the kernel sends a message to the pager to allow it to
     /// resolve the faults (or kill the task).
@@ -58,10 +58,6 @@ struct task {
     /// The acceptable sender task ID. If it's IPC_ANY, the task accepts
     /// messages from any tasks.
     task_t src;
-    /// The receive buffer for bulk IPC. Be careful since it's a user pointer.
-    vaddr_t bulk_ptr;
-    /// The size of the receiver buffer for bulk IPC.
-    size_t bulk_len;
     /// The pending notifications. It's cleared when the task received them as
     /// an message (NOTIFICATIONS_MSG).
     notifications_t notifications;
@@ -99,6 +95,7 @@ MUSTUSE error_t task_listen_irq(struct task *task, unsigned irq);
 MUSTUSE error_t task_unlisten_irq(unsigned irq);
 void handle_timer_irq(void);
 void handle_irq(unsigned irq);
+NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip);
 void task_dump(void);
 void task_init(void);
 
