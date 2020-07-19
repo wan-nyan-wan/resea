@@ -57,20 +57,17 @@ error_t vm_create(struct vm *vm) {
 void vm_destroy(struct vm *vm) {
 }
 
-error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr,
+error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr, paddr_t kpage,
                 pageattrs_t attrs) {
     ASSERT(vaddr < KERNEL_BASE_ADDR);
     ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
     ASSERT(IS_ALIGNED(paddr, PAGE_SIZE));
+    ASSERT(IS_ALIGNED(kpage, PAGE_SIZE));
 
-    paddr_t page = 0;
-retry:
     attrs |= PAGE_PRESENT;
-    uint64_t *entry = traverse_page_table(vm->pml4, vaddr, page, attrs);
+    uint64_t *entry = traverse_page_table(vm->pml4, vaddr, kpage, attrs);
     if (!entry) {
-        page = into_paddr(alloc_page());
-        goto retry;
-        return ERR_NO_MEMORY;
+        return (kpage) ? ERR_TRY_AGAIN : ERR_EMPTY;
     }
 
     *entry = paddr | attrs;

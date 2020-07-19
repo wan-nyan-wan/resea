@@ -207,9 +207,7 @@ static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
 
     // TODO: Use flags
     // TODO: pages[pfn]
-    error_t err = vm_link(&CURRENT->vm, vaddr, paddr, PAGE_USER | PAGE_WRITABLE);
-    ASSERT_OK(err);
-    return OK;
+    return vm_link(&CURRENT->vm, vaddr, paddr, kpage, PAGE_USER | PAGE_WRITABLE);
 }
 
 /// The system call handler.

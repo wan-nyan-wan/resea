@@ -174,6 +174,19 @@ static vaddr_t alloc_virt_pages(struct task *task, size_t num_pages) {
     return vaddr;
 }
 
+static error_t map_page(struct task *task, vaddr_t vaddr, paddr_t paddr) {
+    while (true) {
+        paddr_t kpage = pages_alloc(1);
+        error_t err = task_map(task->tid, vaddr, paddr, kpage, 0 /* TODO: */);
+        switch (err) {
+            case ERR_TRY_AGAIN:
+                continue;
+            default:
+                return err;
+        }
+    }
+}
+
 static error_t alloc_pages(struct task *task, vaddr_t *vaddr, paddr_t *paddr,
                            size_t num_pages) {
     if (*paddr && !is_mappable_paddr(*paddr)) {
@@ -243,13 +256,15 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             paddr_t paddr =
                 pager(task, m->page_fault.vaddr, m->page_fault.fault);
             if (paddr) {
-                m->type = PAGE_FAULT_REPLY_MSG;
-                m->page_fault_reply.vaddr = paddr;
-                m->page_fault_reply.attrs = PAGE_WRITABLE;
-                volatile int x = *((volatile char *) paddr); // FIXME: Handle page faults in kernel
-                ASSERT(x != 0xaaffaa);
-                *reply_to = task->tid;
-                return OK;
+                error_t err = map_page(task, m->page_fault.vaddr, paddr);
+                if (err == OK) {
+                    m->type = PAGE_FAULT_REPLY_MSG;
+                    *reply_to = task->tid;
+                    return OK;
+                } else {
+                    kill(task);
+                    return DONT_REPLY;
+                }
             } else {
                 kill(task);
                 return DONT_REPLY;
