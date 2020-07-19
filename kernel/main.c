@@ -31,9 +31,10 @@ static struct bootelf_header *locate_bootelf_header(void) {
 /// Allocates a memory page for the first user task.
 // TODO: static
 void *alloc_page(void) {
-    static uint8_t heap[PAGE_SIZE * 1024];
+    static uint8_t heap[PAGE_SIZE * 1024] __attribute__((aligned(PAGE_SIZE)));
     static uint8_t *current = heap;
-    if (current >= heap + sizeof(*heap)) {
+    TRACE("alloc page %p (rem=%p)", current, heap + sizeof(heap));
+    if (current >= heap + sizeof(heap)) {
         PANIC("run out of memory for init task");
     }
 
@@ -95,6 +96,7 @@ NORETURN void kmain(void) {
     mp_start();
 
     char name[CONFIG_TASK_NAME_LEN];
+    struct bootelf_header *bootelf = locate_bootelf_header();
     strncpy(name, (const char *) bootelf->name,
             MIN(sizeof(name), sizeof(bootelf->name)));
 
