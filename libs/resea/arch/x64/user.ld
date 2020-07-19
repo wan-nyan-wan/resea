@@ -27,6 +27,16 @@ SECTIONS {
     .data : ALIGN(0x1000) {
         *(.data);
         *(.data.*);
+
+        . = ALIGN(16);
+        __stack = .;
+        . += 0x4000;
+        __stack_end = .;
+
+        . = ALIGN(16);
+        __heap = .;
+        . += 0x8000;
+        __heap_end = .;
     } :data
 
     . = 0x04000000;
@@ -39,15 +49,6 @@ SECTIONS {
         __bss_end = .;
     } :bss
 
-    . = ALIGN(16);
-    __stack = .;
-    . += 0x4000;
-    __stack_end = .;
-
-    . = ALIGN(16);
-    __heap = .;
-    . = 0x05000000;
-    __heap_end = .;
     __zeroed_pages_end = .;
 
     __free_vaddr = .;
