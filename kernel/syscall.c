@@ -176,6 +176,42 @@ static error_t sys_kdebug(userptr_t cmdline) {
     return kdebug_run(input);
 }
 
+static paddr_t resolve_paddr(struct task *task, vaddr_t vaddr) {
+    if (CURRENT->tid == INIT_TASK_TID) {
+        if (is_kernel_paddr(vaddr)) {
+            return 0;
+        }
+        return vaddr;
+    } else {
+        paddr_t paddr = vm_resolve(&CURRENT->vm, vaddr);
+        if (!paddr) {
+            return ERR_NOT_FOUND;
+        }
+        return paddr;
+    }
+}
+
+static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
+                       unsigned flags) {
+    struct task *task = task_lookup(tid);
+    if (!task) {
+        return ERR_INVALID_ARG;
+    }
+
+    // Resolve paddrs.
+    paddr_t paddr = resolve_paddr(task, src);
+    paddr_t kpage_paddr = resolve_paddr(task, kpage);
+    if (!paddr || !kpage_paddr) {
+        return ERR_NOT_FOUND;
+    }
+
+    // TODO: Use flags
+    // TODO: pages[pfn]
+    error_t err = vm_link(&CURRENT->vm, vaddr, paddr, PAGE_USER | PAGE_WRITABLE);
+    ASSERT_OK(err);
+    return OK;
+}
+
 /// The system call handler.
 long handle_syscall(int n, long a1, long a2, long a3, long a4, long a5) {
     stack_check();
@@ -193,6 +229,9 @@ long handle_syscall(int n, long a1, long a2, long a3, long a4, long a5) {
             break;
         case SYS_IPC:
             ret = sys_ipc(a1, a2, a3, a4);
+            break;
+        case SYS_MAP:
+            ret = sys_map(a1, a2, a3, a4, a5);
             break;
         case SYS_LISTENIRQ:
             ret = sys_listenirq(a1, a2);

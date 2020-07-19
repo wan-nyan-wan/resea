@@ -95,7 +95,7 @@ MUSTUSE error_t task_listen_irq(struct task *task, unsigned irq);
 MUSTUSE error_t task_unlisten_irq(unsigned irq);
 void handle_timer_irq(void);
 void handle_irq(unsigned irq);
-NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault);
+void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault);
 void task_dump(void);
 void task_init(void);
 

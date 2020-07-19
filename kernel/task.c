@@ -267,7 +267,7 @@ void handle_irq(unsigned irq) {
 }
 
 /// The page fault handler. It calls a pager and updates the page table.
-NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault) {
+void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault) {
     TRACE("page fault: %s: addr=%p, ip=%p", CURRENT->name, ip, addr);
     ASSERT(CURRENT->pager != NULL);
 

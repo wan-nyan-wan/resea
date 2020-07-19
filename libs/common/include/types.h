@@ -86,6 +86,7 @@ typedef int error_t;
 #define SYS_WRITELOG   6
 #define SYS_READLOG    7
 #define SYS_KDEBUG     8
+#define SYS_MAP     9
 
 // Task flags.
 #define TASK_IO      (1 << 0)
