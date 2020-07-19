@@ -269,8 +269,16 @@ void handle_irq(unsigned irq) {
 /// The page fault handler. It calls a pager and updates the page table.
 NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault) {
     // TODO:
-    INFO("ip=%p, addr=%p", ip, addr);
-    task_exit(EXP_INVALID_MEMORY_ACCESS);
+    ASSERT(CURRENT->pager != NULL);
+    TRACE("page fault: %s: addr=%p, ip=%p", CURRENT->name, ip, addr);
+    struct message m;
+    m.type = PAGE_FAULT_MSG;
+    m.page_fault.task = CURRENT->tid;
+    m.page_fault.vaddr = addr;
+    m.page_fault.ip = ip;
+    m.page_fault.fault = fault;
+    error_t err = ipc(CURRENT->pager, 0, &m, IPC_CALL | IPC_KERNEL);
+    OOPS_OK(err);
 }
 
 void task_dump(void) {

@@ -3,6 +3,9 @@
 #include <string.h>
 #include "vm.h"
 
+// TODO: remove
+void *alloc_page(void);
+
 static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
                                      paddr_t page, pageattrs_t attrs) {
     ASSERT(vaddr < KERNEL_BASE_ADDR);
@@ -39,37 +42,26 @@ static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
 extern char __kernel_heap[];
 
 error_t vm_create(struct vm *vm) {
-    vm->pml4 = 0;
+    paddr_t page = into_paddr(alloc_page());
+    vm->pml4 = page;
+    uint64_t *table = from_paddr(vm->pml4);
+    memcpy(table, from_paddr((paddr_t) __kernel_pml4), PAGE_SIZE);
+
+    // The kernel no longer access a virtual address around 0x0000_0000. Unmap
+    // the area to catch bugs (especially NULL pointer dereferences in the
+    // kernel).
+    table[0] = 0;
     return OK;
 }
 
 void vm_destroy(struct vm *vm) {
 }
 
-// TODO: remove
-void *alloc_page(void);
-
 error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr,
                 pageattrs_t attrs) {
     ASSERT(vaddr < KERNEL_BASE_ADDR);
     ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
     ASSERT(IS_ALIGNED(paddr, PAGE_SIZE));
-
-    if (!vm->pml4) {
-        paddr_t page = into_paddr(alloc_page());
-        if (!page) {
-            return ERR_NO_MEMORY;
-        }
-
-        vm->pml4 = page;
-        uint64_t *table = from_paddr(vm->pml4);
-        memcpy(table, from_paddr((paddr_t) __kernel_pml4), PAGE_SIZE);
-
-        // The kernel no longer access a virtual address around 0x0000_0000. Unmap
-        // the area to catch bugs (especially NULL pointer dereferences in the
-        // kernel).
-        table[0] = 0;
-    }
 
     paddr_t page = 0;
 retry:
