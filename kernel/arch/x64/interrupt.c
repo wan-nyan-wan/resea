@@ -77,7 +77,6 @@ void x64_handle_interrupt(uint8_t vec, struct iframe *frame) {
             vaddr_t addr = asm_read_cr2();
             pagefault_t fault = frame->error;
             uint64_t ip = frame->rip;
-            TRACE("%p", addr);
 
             if (fault & (1 << 3)) {
                 PANIC("#PF: RSVD bit violation "

@@ -55,12 +55,13 @@ error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr,
     ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
     ASSERT(IS_ALIGNED(paddr, PAGE_SIZE));
 
-    paddr_t page = (paddr_t) alloc_page();
     if (!vm->pml4) {
+        paddr_t page = into_paddr(alloc_page());
         if (!page) {
             return ERR_NO_MEMORY;
         }
 
+        vm->pml4 = page;
         uint64_t *table = from_paddr(vm->pml4);
         memcpy(table, from_paddr((paddr_t) __kernel_pml4), PAGE_SIZE);
 
@@ -70,9 +71,13 @@ error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr,
         table[0] = 0;
     }
 
+    paddr_t page = 0;
+retry:
     attrs |= PAGE_PRESENT;
     uint64_t *entry = traverse_page_table(vm->pml4, vaddr, page, attrs);
     if (!entry) {
+        page = into_paddr(alloc_page());
+        goto retry;
         return ERR_NO_MEMORY;
     }
 

@@ -71,13 +71,6 @@ SECTIONS {
     __boot_stack_base = .;
     . += 0x1000 * 16; /* PAGE_SIZE * CPU_NUM_MAX */
 
-    /* Kernel Heap (vaddr_t). */
-    . = ALIGN(4096);
-    . += LMA_OFFSET;
-    __kernel_heap = .;
-    . = LMA_OFFSET + 0x3000000;
-    __kernel_heap_end = .;
-
     . = ALIGN(4096);
     __kernel_data_end = . - LMA_OFFSET; /* paddr_t */
 

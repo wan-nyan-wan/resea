@@ -31,9 +31,9 @@ static struct bootelf_header *locate_bootelf_header(void) {
 /// Allocates a memory page for the first user task.
 // TODO: static
 void *alloc_page(void) {
-    static uint8_t heap[PAGE_SIZE * 64] __attribute__((aligned(PAGE_SIZE)));
+    static uint8_t heap[PAGE_SIZE * 2048] __attribute__((aligned(PAGE_SIZE)));
     static uint8_t *current = heap;
-    TRACE("alloc page %p (rem=%p)", current, heap + sizeof(heap));
+//    TRACE("alloc page %p (rem=%p)", current, heap + sizeof(heap));
     if (current >= heap + sizeof(heap)) {
         PANIC("run out of memory for init task");
     }
@@ -69,6 +69,7 @@ void map_bootelf(struct bootelf_header *header, struct vm *vm) {
 
         pageattrs_t attrs = PAGE_USER | PAGE_WRITABLE;
         if (m->zeroed) {
+            INFO("map zero %d", m->num_pages);
             for (size_t j = 0; j < m->num_pages; j++) {
                 void *page = alloc_page();
                 ASSERT(page);
@@ -78,6 +79,7 @@ void map_bootelf(struct bootelf_header *header, struct vm *vm) {
                 vaddr += PAGE_SIZE;
             }
         } else {
+            INFO("map filled %d", m->num_pages);
             for (size_t j = 0; j < m->num_pages; j++) {
                 error_t err = vm_link(vm, vaddr, paddr, attrs);
                 ASSERT_OK(err);
