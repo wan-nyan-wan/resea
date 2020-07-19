@@ -37,16 +37,17 @@ SECTIONS {
         __heap = .;
         . += 0x8000;
         __heap_end = .;
+
+        __bss = .;
+        *(.bss);
+        *(.bss.*);
+        __bss_end = .;
     } :data
 
     . = 0x04000000;
     __zeroed_pages = .;
 
     .bss : ALIGN(0x1000) {
-        __bss = .;
-        *(.bss);
-        *(.bss.*);
-        __bss_end = .;
     } :bss
 
     __zeroed_pages_end = .;
