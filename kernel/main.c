@@ -9,6 +9,7 @@
 // Defined in arch.
 extern uint8_t __bootelf[];
 extern uint8_t __bootelf_end[];
+struct bootelf_header *bootelf = NULL;
 
 static struct bootelf_header *locate_bootelf_header(void) {
     const offset_t offsets[] = {
@@ -27,8 +28,22 @@ static struct bootelf_header *locate_bootelf_header(void) {
     PANIC("failed to locate the boot ELF header");
 }
 
+/// Allocates a memory page for the first user task.
+// TODO: static
+void *alloc_page(void) {
+    static uint8_t heap[PAGE_SIZE * 1024];
+    static uint8_t *current = heap;
+    if (current >= heap + sizeof(*heap)) {
+        PANIC("run out of memory for init task");
+    }
+
+    void *ptr = current;
+    current += PAGE_SIZE;
+    return ptr;
+}
+
 // Maps ELF segments in the boot ELF into virtual memory.
-static void map_boot_elf(struct bootelf_header *header, struct vm *vm) {
+void map_bootelf(struct bootelf_header *header, struct vm *vm) {
     TRACE("boot ELF: entry=%p", header->entry);
     for (unsigned i = 0; i < header->num_mappings; i++) {
         struct bootelf_mapping *m = &header->mappings[i];
@@ -54,7 +69,7 @@ static void map_boot_elf(struct bootelf_header *header, struct vm *vm) {
         pageattrs_t attrs = PAGE_USER | PAGE_WRITABLE;
         if (m->zeroed) {
             for (size_t j = 0; j < m->num_pages; j++) {
-                void *page = kmalloc(PAGE_SIZE);
+                void *page = alloc_page();
                 ASSERT(page);
                 memset(page, 0, PAGE_SIZE);
                 error_t err = vm_link(vm, vaddr, into_paddr(page), attrs);
@@ -76,12 +91,10 @@ static void map_boot_elf(struct bootelf_header *header, struct vm *vm) {
 /// Initializes the kernel and starts the first task.
 NORETURN void kmain(void) {
     printf("\nBooting Resea " VERSION "...\n");
-    memory_init();
     task_init();
     mp_start();
 
     char name[CONFIG_TASK_NAME_LEN];
-    struct bootelf_header *bootelf = locate_bootelf_header();
     strncpy(name, (const char *) bootelf->name,
             MIN(sizeof(name), sizeof(bootelf->name)));
 
@@ -90,7 +103,7 @@ NORETURN void kmain(void) {
     ASSERT(task);
     error_t err = task_create(task, name, bootelf->entry, NULL, 0);
     ASSERT_OK(err);
-    map_boot_elf(bootelf, &task->vm);
+    map_bootelf(bootelf, &task->vm);
 
     mpmain();
 }

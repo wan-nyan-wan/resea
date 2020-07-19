@@ -45,7 +45,7 @@ struct task {
     /// Number of references to this task.
     unsigned ref_count;
     /// The page table.
-    paddr_t page_table;
+    struct vm vm;
     /// The pager task. When a page fault or an exception (e.g. divide by zero)
     /// occurred, the kernel sends a message to the pager to allow it to
     /// resolve the faults (or kill the task).
@@ -95,7 +95,7 @@ MUSTUSE error_t task_listen_irq(struct task *task, unsigned irq);
 MUSTUSE error_t task_unlisten_irq(unsigned irq);
 void handle_timer_irq(void);
 void handle_irq(unsigned irq);
-NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip);
+NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault);
 void task_dump(void);
 void task_init(void);
 
@@ -111,5 +111,10 @@ void arch_task_destroy(struct task *task);
 void arch_task_switch(struct task *prev, struct task *next);
 void arch_enable_irq(unsigned irq);
 void arch_disable_irq(unsigned irq);
+struct vm;
+MUSTUSE error_t vm_create(struct vm *vm);
+void vm_destroy(struct vm *vm);
+MUSTUSE error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr, pageattrs_t attrs);
+paddr_t vm_resolve(struct vm *vm, vaddr_t vaddr);
 
 #endif

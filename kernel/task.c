@@ -1,11 +1,11 @@
-#include "task.h"
 #include <arch.h>
 #include <list.h>
 #include <config.h>
 #include <string.h>
+#include <message.h>
+#include "task.h"
 #include "ipc.h"
 #include "kdebug.h"
-#include "message.h"
 #include "printk.h"
 #include "syscall.h"
 
@@ -63,14 +63,6 @@ error_t task_create(struct task *task, const char *name, vaddr_t ip,
         return err;
     }
 
-    // Try mapping `__temp_page` so that vm_link() does not fail in IPC because
-    // of run out of kernel memory.
-    err = vm_link(&task->vm, (vaddr_t) __temp_page, 0, PAGE_WRITABLE);
-    if (IS_ERROR(err)) {
-        vm_destroy(&task->vm);
-        return err;
-    }
-
     // Initialize fields.
     TRACE("new task #%d: %s (pager=%s)",
           task->tid, name, pager ? pager->name : NULL);
@@ -79,8 +71,6 @@ error_t task_create(struct task *task, const char *name, vaddr_t ip,
     task->notifications = 0;
     task->pager = pager;
     task->src = IPC_DENY;
-    task->bulk_ptr = 0;
-    task->bulk_len = 0;
     task->timeout = 0;
     task->quantum = 0;
     task->ref_count = 0;
@@ -277,7 +267,8 @@ void handle_irq(unsigned irq) {
 }
 
 /// The page fault handler. It calls a pager and updates the page table.
-NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip) {
+NORETURN void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault) {
+    // TODO:
     task_exit(EXP_INVALID_MEMORY_ACCESS);
 }
 

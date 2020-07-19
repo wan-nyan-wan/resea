@@ -5,28 +5,24 @@
 #include "interrupt.h"
 #include "trap.h"
 
+// TODO: remove
+void *alloc_page(void);
+
 error_t arch_task_create(struct task *task, vaddr_t ip) {
-    void *interrupt_stack_bottom = kmalloc(PAGE_SIZE);
-    if (!interrupt_stack_bottom) {
-        return ERR_NO_MEMORY;
-    }
-
-    void *syscall_stack_bottom = kmalloc(PAGE_SIZE);
+    vaddr_t kstack = (vaddr_t) alloc_page();
+    void *syscall_stack_bottom = alloc_page();
     if (!syscall_stack_bottom) {
-        kfree(interrupt_stack_bottom);
         return ERR_NO_MEMORY;
     }
 
-    void *xsave = kmalloc(PAGE_SIZE);
+    void *xsave = alloc_page();
     if (!xsave) {
-        kfree(interrupt_stack_bottom);
-        kfree(syscall_stack_bottom);
         return ERR_NO_MEMORY;
     }
 
-    task->arch.interrupt_stack = (uint64_t) interrupt_stack_bottom + PAGE_SIZE;
+    task->arch.interrupt_stack_bottom = (void *) kstack;
+    task->arch.interrupt_stack = (uint64_t) kstack + PAGE_SIZE;
     task->arch.syscall_stack = (uint64_t) syscall_stack_bottom + PAGE_SIZE;
-    task->arch.interrupt_stack_bottom = interrupt_stack_bottom;
     task->arch.syscall_stack_bottom = syscall_stack_bottom;
     task->arch.xsave = xsave;
     task->arch.gsbase = 0;
@@ -58,9 +54,6 @@ error_t arch_task_create(struct task *task, vaddr_t ip) {
 }
 
 void arch_task_destroy(struct task *task) {
-    kfree(task->arch.interrupt_stack_bottom);
-    kfree(task->arch.syscall_stack_bottom);
-    kfree(task->arch.xsave);
 }
 
 static void update_tss_iomap(struct task *task) {
