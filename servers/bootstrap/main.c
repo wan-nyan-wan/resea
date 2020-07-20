@@ -262,15 +262,12 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             paddr_t paddr =
                 pager(task, m->page_fault.vaddr, m->page_fault.fault);
             if (paddr) {
-                error_t err = map_page(task, m->page_fault.vaddr, paddr);
-                if (err == OK) {
-                    m->type = PAGE_FAULT_REPLY_MSG;
-                    *reply_to = task->tid;
-                    return OK;
-                } else {
-                    kill(task);
-                    return DONT_REPLY;
-                }
+                vaddr_t aligned_vaddr =
+                    ALIGN_DOWN(m->page_fault.vaddr, PAGE_SIZE);
+                ASSERT_OK(map_page(task, aligned_vaddr, paddr));
+                m->type = PAGE_FAULT_REPLY_MSG;
+                *reply_to = task->tid;
+                return OK;
             } else {
                 kill(task);
                 return DONT_REPLY;

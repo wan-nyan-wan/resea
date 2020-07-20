@@ -2,8 +2,8 @@
 #include "pages.h"
 
 static struct page pages[PAGES_MAX];
-extern char __zeroed_pages_end[];
-#define PAGES_BASE_ADDR ((paddr_t) __zeroed_pages_end)
+extern char __straight_mapping[];
+#define PAGES_BASE_ADDR ((paddr_t) __straight_mapping)
 
 bool is_mappable_paddr(paddr_t paddr) {
     // FIXME: arch-dependent code

@@ -7,7 +7,6 @@ static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
                                      paddr_t page, pageattrs_t attrs) {
     ASSERT(vaddr < KERNEL_BASE_ADDR);
     ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
-    TRACE("pml4 = %p, traverse %p (%p)", vaddr, page);
 
     uint64_t *table = from_paddr(pml4);
     for (int level = 4; level > 1; level--) {
@@ -30,10 +29,13 @@ static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
         // Update attributes if given.
         table[index] = table[index] | attrs;
 
+//        INFO("level=%d, table[index]=%p", level, table[index]);
+
         // Go into the next level paging table.
         table = (uint64_t *) from_paddr(ENTRY_PADDR(table[index]));
     }
 
+//    INFO("level=0, table[index]=%p (%d)", table[NTH_LEVEL_INDEX(1, vaddr)], NTH_LEVEL_INDEX(1, vaddr));
     return &table[NTH_LEVEL_INDEX(1, vaddr)];
 }
 
@@ -64,6 +66,10 @@ error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr, paddr_t kpage,
     uint64_t *entry = traverse_page_table(vm->pml4, vaddr, kpage, attrs);
     if (!entry) {
         return (kpage) ? ERR_TRY_AGAIN : ERR_EMPTY;
+    }
+
+    if (*entry) {
+        return ERR_ALREADY_EXISTS;
     }
 
     *entry = paddr | attrs;

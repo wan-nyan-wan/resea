@@ -179,7 +179,6 @@ static error_t sys_kdebug(userptr_t cmdline) {
 static paddr_t resolve_paddr(vaddr_t vaddr) {
     if (CURRENT->tid == INIT_TASK_TID) {
         if (is_kernel_paddr(vaddr)) {
-            INFO("invaavadsvascdsdf %p", vaddr);
             return 0;
         }
         return vaddr;
@@ -200,6 +199,8 @@ static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
         return ERR_INVALID_ARG;
     }
 
+    // TODO: Check if kpage is mapped in the kernel's address space.
+
     struct task *task = task_lookup(tid);
     if (!task) {
         return ERR_INVALID_ARG;
@@ -214,7 +215,7 @@ static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
 
     // TODO: Use flags
     // TODO: pages[pfn]
-    return vm_link(&CURRENT->vm, vaddr, paddr, kpage, PAGE_USER | PAGE_WRITABLE);
+    return vm_link(&task->vm, vaddr, paddr, kpage, PAGE_USER | PAGE_WRITABLE);
 }
 
 /// The system call handler.
