@@ -72,7 +72,7 @@ SECTIONS {
     . += 0x1000 * 16; /* PAGE_SIZE * CPU_NUM_MAX */
 
     . = ALIGN(4096);
-    __kernel_data_end = . - LMA_OFFSET; /* paddr_t */
+    __kernel_data_end = .; /* paddr_t */
 
     /DISCARD/ :{
         *(*.eh_frame);

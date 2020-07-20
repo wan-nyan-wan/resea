@@ -81,6 +81,7 @@ void *malloc(size_t size) {
                    MALLOC_REDZONE_LEN);
             memset(&allocated->data[allocated->capacity],
                    MALLOC_REDZONE_OVRFLOW_MARKER, MALLOC_REDZONE_LEN);
+            TRACE("malloc = %p", allocated->data);
             return allocated->data;
         }
     }
@@ -93,6 +94,7 @@ static struct malloc_chunk *get_chunk_from_ptr(void *ptr) {
         (struct malloc_chunk *) ((uintptr_t) ptr - sizeof(struct malloc_chunk));
 
     // Check its magic and underflow/overflow redzones.
+    TRACE("ptr = %p", ptr);
     ASSERT(chunk->magic == MALLOC_IN_USE);
     check_buffer_overflow(chunk);
     return chunk;

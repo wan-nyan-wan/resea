@@ -5,7 +5,7 @@
 
 /// Page Frame Number.
 typedef unsigned pfn_t;
-#define PAGES_MAX ((4ULL * 1024 * 1024 * 1024) / PAGE_SIZE)
+#define PAGES_MAX ((1ULL * 1024 * 1024 * 1024) / PAGE_SIZE) // FIXME:
 
 struct page {
     unsigned ref_count;

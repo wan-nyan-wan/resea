@@ -7,6 +7,7 @@ static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
                                      paddr_t page, pageattrs_t attrs) {
     ASSERT(vaddr < KERNEL_BASE_ADDR);
     ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
+    TRACE("pml4 = %p, traverse %p (%p)", vaddr, page);
 
     uint64_t *table = from_paddr(pml4);
     for (int level = 4; level > 1; level--) {

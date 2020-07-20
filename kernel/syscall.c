@@ -176,9 +176,10 @@ static error_t sys_kdebug(userptr_t cmdline) {
     return kdebug_run(input);
 }
 
-static paddr_t resolve_paddr(struct task *task, vaddr_t vaddr) {
+static paddr_t resolve_paddr(vaddr_t vaddr) {
     if (CURRENT->tid == INIT_TASK_TID) {
         if (is_kernel_paddr(vaddr)) {
+            INFO("invaavadsvascdsdf %p", vaddr);
             return 0;
         }
         return vaddr;
@@ -193,14 +194,20 @@ static paddr_t resolve_paddr(struct task *task, vaddr_t vaddr) {
 
 static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
                        unsigned flags) {
+    TRACE("v=%p, src=%p, kp=%p", vaddr,src,kpage);
+    if (!IS_ALIGNED(vaddr, PAGE_SIZE) || !IS_ALIGNED(vaddr, PAGE_SIZE)
+        || !IS_ALIGNED(kpage, PAGE_SIZE)) {
+        return ERR_INVALID_ARG;
+    }
+
     struct task *task = task_lookup(tid);
     if (!task) {
         return ERR_INVALID_ARG;
     }
 
     // Resolve paddrs.
-    paddr_t paddr = resolve_paddr(task, src);
-    paddr_t kpage_paddr = resolve_paddr(task, kpage);
+    paddr_t paddr = resolve_paddr(src);
+    paddr_t kpage_paddr = resolve_paddr(kpage);
     if (!paddr || !kpage_paddr) {
         return ERR_NOT_FOUND;
     }

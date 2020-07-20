@@ -32,24 +32,23 @@ SECTIONS {
         __stack = .;
         . += 0x4000;
         __stack_end = .;
+    } :data
 
-        . = ALIGN(16);
+    . = 0x04000000;
+    .bss : ALIGN(0x1000) {
         __heap = .;
-        . += 0x8000;
+        . += 0x10000;
         __heap_end = .;
 
+        . = ALIGN(0x1000);
+        __zeroed_pages = .;
         __bss = .;
         *(.bss);
         *(.bss.*);
         __bss_end = .;
-    } :data
-
-    . = 0x04000000;
-    __zeroed_pages = .;
-
-    .bss : ALIGN(0x1000) {
     } :bss
 
+    . = 0x05000000;
     __zeroed_pages_end = .;
 
     __free_vaddr = .;

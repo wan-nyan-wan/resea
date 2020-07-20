@@ -52,7 +52,10 @@ static struct task *get_task_by_tid(task_t tid) {
 static void read_file(struct bootfs_file *file, offset_t off, void *buf, size_t len) {
     void *p =
         (void *) (((uintptr_t) __bootfs) + file->offset + off);
+        DBG("line: %d: p=%p -> %p (%x %d)", __LINE__, p, buf, off, len);
+        INFO("rip=%p:%p, rbp=%p", read_file, memcpy, __builtin_frame_address(0));
     memcpy(buf, p, len);
+        DBG("line: %d: p=%p (%x)", __LINE__, p, off);
 }
 
 static task_t launch_task(struct bootfs_file *file) {
@@ -97,6 +100,23 @@ static task_t launch_task(struct bootfs_file *file) {
     return task->tid;
 }
 
+static error_t do_map_page(task_t tid, vaddr_t vaddr, paddr_t paddr) {
+    while (true) {
+        paddr_t kpage = pages_alloc(1);
+        error_t err = task_map(tid, vaddr, paddr, kpage, 0 /* TODO: */);
+        switch (err) {
+            case ERR_TRY_AGAIN:
+                continue;
+            default:
+                return err;
+        }
+    }
+}
+
+static error_t map_page(struct task *task, vaddr_t vaddr, paddr_t paddr) {
+    return do_map_page(task->tid, vaddr, paddr);
+}
+
 static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
     vaddr = ALIGN_DOWN(vaddr, PAGE_SIZE);
 
@@ -121,6 +141,7 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
     if (zeroed_pages_start <= vaddr && vaddr < zeroed_pages_end) {
         // The accessed page is zeroed one (.bss section, stack, or heap).
         paddr_t paddr = pages_alloc(1);
+        ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
         memset((void *) paddr, 0, PAGE_SIZE);
         return paddr;
     }
@@ -147,6 +168,7 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
     }
     // Allocate a page and fill it with the file data.
     paddr_t paddr = pages_alloc(1);
+    ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
     size_t offset_in_segment = (vaddr - phdr->p_vaddr) + phdr->p_offset;
     read_file(task->file, offset_in_segment, (void *) paddr, PAGE_SIZE);
     return paddr;
@@ -172,19 +194,6 @@ static vaddr_t alloc_virt_pages(struct task *task, size_t num_pages) {
 
     task->free_vaddr += size;
     return vaddr;
-}
-
-static error_t map_page(struct task *task, vaddr_t vaddr, paddr_t paddr) {
-    while (true) {
-        paddr_t kpage = pages_alloc(1);
-        error_t err = task_map(task->tid, vaddr, paddr, kpage, 0 /* TODO: */);
-        switch (err) {
-            case ERR_TRY_AGAIN:
-                continue;
-            default:
-                return err;
-        }
-    }
 }
 
 static error_t alloc_pages(struct task *task, vaddr_t *vaddr, paddr_t *paddr,
