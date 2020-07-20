@@ -7,6 +7,7 @@
 
 // TODO: remove
 void *alloc_page(void);
+static uint64_t pml4_tables[CONFIG_NUM_TASKS][512] __attribute__((aligned(4096)));
 
 error_t arch_task_create(struct task *task, vaddr_t ip) {
     vaddr_t kstack = (vaddr_t) alloc_page();
@@ -20,6 +21,7 @@ error_t arch_task_create(struct task *task, vaddr_t ip) {
         return ERR_NO_MEMORY;
     }
 
+    task->vm.pml4 = into_paddr(pml4_tables[task->tid]);
     task->arch.interrupt_stack_bottom = (void *) kstack;
     task->arch.interrupt_stack = (uint64_t) kstack + PAGE_SIZE;
     task->arch.syscall_stack = (uint64_t) syscall_stack_bottom + PAGE_SIZE;

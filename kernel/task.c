@@ -51,15 +51,14 @@ error_t task_create(struct task *task, const char *name, vaddr_t ip,
     }
 #endif
 
-    // Initialize the page table.
+    // Do arch-specific initialization.
     error_t err;
-    if ((err = vm_create(&task->vm)) != OK) {
+    if ((err = arch_task_create(task, ip)) != OK) {
         return err;
     }
 
-    // Do arch-specific initialization.
-    if ((err = arch_task_create(task, ip)) != OK) {
-        vm_destroy(&task->vm);
+    // Initialize the page table.
+    if ((err = vm_create(&task->vm)) != OK) {
         return err;
     }
 

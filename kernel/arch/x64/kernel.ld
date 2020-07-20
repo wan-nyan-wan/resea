@@ -74,9 +74,6 @@ SECTIONS {
     . = ALIGN(4096);
     __kernel_data_end = . - LMA_OFFSET; /* paddr_t */
 
-    /* A temporary page used internally by kernel (virtual address). */
-    __temp_page = 0xffff0000;
-
     /DISCARD/ :{
         *(*.eh_frame);
     }
