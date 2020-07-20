@@ -52,10 +52,7 @@ static struct task *get_task_by_tid(task_t tid) {
 static void read_file(struct bootfs_file *file, offset_t off, void *buf, size_t len) {
     void *p =
         (void *) (((uintptr_t) __bootfs) + file->offset + off);
-        DBG("line: %d: p=%p -> %p (%x %d)", __LINE__, p, buf, off, len);
-        INFO("rip=%p:%p, rbp=%p", read_file, memcpy, __builtin_frame_address(0));
     memcpy(buf, p, len);
-        DBG("line: %d: p=%p (%x)", __LINE__, p, off);
 }
 
 static task_t launch_task(struct bootfs_file *file) {
