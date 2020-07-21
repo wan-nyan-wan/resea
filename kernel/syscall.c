@@ -193,7 +193,6 @@ static paddr_t resolve_paddr(vaddr_t vaddr) {
 
 static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
                        unsigned flags) {
-    TRACE("v=%p, src=%p, kp=%p", vaddr,src,kpage);
     if (!IS_ALIGNED(vaddr, PAGE_SIZE) || !IS_ALIGNED(vaddr, PAGE_SIZE)
         || !IS_ALIGNED(kpage, PAGE_SIZE)) {
         return ERR_INVALID_ARG;

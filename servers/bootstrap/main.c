@@ -258,7 +258,6 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             ASSERT(task);
             ASSERT(m->page_fault.task == task->tid);
 
-            DBG("#PF: %s %p", task->name, m->page_fault.vaddr);
             paddr_t paddr =
                 pager(task, m->page_fault.vaddr, m->page_fault.fault);
             if (paddr) {
