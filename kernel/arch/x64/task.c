@@ -5,24 +5,18 @@
 #include "interrupt.h"
 #include "trap.h"
 
-// TODO: remove
-void *alloc_page(void);
-static uint64_t pml4_tables[CONFIG_NUM_TASKS][512] __attribute__((aligned(4096)));
+static uint64_t pml4_tables[CONFIG_NUM_TASKS][512] ALIGNED(4096);
+static uint8_t kernel_stacks[CONFIG_NUM_TASKS][8192] ALIGNED(4096);
+static uint8_t syscall_stacks[CONFIG_NUM_TASKS][8192] ALIGNED(4096);
+static uint8_t xsave_areas[CONFIG_NUM_TASKS][4096] ALIGNED(4096);
 
 error_t arch_task_create(struct task *task, vaddr_t ip) {
-    vaddr_t kstack = (vaddr_t) alloc_page();
-    void *syscall_stack_bottom = alloc_page();
-    if (!syscall_stack_bottom) {
-        return ERR_NO_MEMORY;
-    }
-
-    void *xsave = alloc_page();
-    if (!xsave) {
-        return ERR_NO_MEMORY;
-    }
+    void *kstack = (void *) kernel_stacks[task->tid];
+    void *syscall_stack_bottom = (void *) syscall_stacks[task->tid];
+    void *xsave = (void *) xsave_areas[task->tid];
 
     task->vm.pml4 = into_paddr(pml4_tables[task->tid]);
-    task->arch.interrupt_stack_bottom = (void *) kstack;
+    task->arch.interrupt_stack_bottom = kstack;
     task->arch.interrupt_stack = (uint64_t) kstack + PAGE_SIZE;
     task->arch.syscall_stack = (uint64_t) syscall_stack_bottom + PAGE_SIZE;
     task->arch.syscall_stack_bottom = syscall_stack_bottom;
