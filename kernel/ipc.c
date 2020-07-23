@@ -96,11 +96,8 @@ static error_t ipc_slowpath(struct task *dst, task_t src, struct message *m,
             // Resume a sender task and sleep until a sender task resumes this
             // task...
             resume_sender(CURRENT, src);
-            TRACE("%s: src %d -> %d", CURRENT->name, CURRENT->src, src);
             task_block(CURRENT);
             task_switch();
-            INFO("%s: recv from %s", CURRENT->name,
-                CURRENT->m.src ? task_lookup_unchecked(CURRENT->m.src)->name : "(kernel)");
 
             // Copy into `tmp_m` since memcpy_to_user may cause a page fault and
             // CURRENT->m will be overwritten by page fault mesages.

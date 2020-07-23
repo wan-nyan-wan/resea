@@ -366,6 +366,7 @@ static error_t handle_do_bulkcopy(struct message *m) {
         }
 
         // Copy between the tasks.
+        INFO("%p -> %p (%d)", src_buf, dst_buf, copy_len);
         memcpy(dst_ptr, src_ptr, copy_len);
         remaining -= copy_len;
         dst_buf += copy_len;
