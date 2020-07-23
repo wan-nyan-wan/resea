@@ -214,6 +214,11 @@ static error_t alloc_pages(struct task *task, vaddr_t *vaddr, paddr_t *paddr,
     return OK;
 }
 
+error_t call_self(struct message *m) {
+    DBG("CALL SELF");
+    return OK;
+}
+
 static error_t handle_message(struct message *m, task_t *reply_to) {
     switch (m->type) {
         case NOP_MSG:

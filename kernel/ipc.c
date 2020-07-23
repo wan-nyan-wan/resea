@@ -116,6 +116,12 @@ static error_t ipc_slowpath(struct task *dst, task_t src, struct message *m,
 ///
 /// Note that `m` is a user pointer if IPC_KERNEL is not set!
 error_t ipc(struct task *dst, task_t src, struct message *m, unsigned flags) {
+    if (dst == CURRENT) {
+        // TODO: WARN_DBG()
+        WARN("%s: tried to send a message to myself", CURRENT->name);
+        return ERR_INVALID_ARG;
+    }
+
 #ifdef CONFIG_IPC_FASTPATH
     // Check if the message can be sent in the fastpath.
     DEBUG_ASSERT((flags & IPC_SEND) == 0 || dst);
