@@ -33,7 +33,10 @@ struct task {
     vaddr_t free_vaddr;
     list_t page_areas;
     vaddr_t bulk_buf;
-    size_t bulk_buf_len;
+    size_t bulk_len;
+    task_t received_bulk_from;
+    vaddr_t received_bulk_buf;
+    size_t received_bulk_len;
     list_t bulk_sender_queue;
     list_elem_t bulk_sender_next;
 };
@@ -99,7 +102,10 @@ static task_t launch_task(struct bootfs_file *file) {
     task->phdrs = (struct elf64_phdr *) ((uintptr_t) ehdr + ehdr->e_ehsize);
     task->free_vaddr = (vaddr_t) __free_vaddr;
     task->bulk_buf = 0;
-    task->bulk_buf_len = 0;
+    task->bulk_len = 0;
+    task->received_bulk_buf = 0;
+    task->received_bulk_len = 0;
+    task->received_bulk_from = 0;
     list_init(&task->bulk_sender_queue);
     list_nullify(&task->bulk_sender_next);
     strncpy(task->name, file->name, sizeof(task->name));
@@ -254,11 +260,28 @@ static error_t handle_accept_bulkcopy(struct message *m) {
     }
 
     task->bulk_buf = m->accept_bulkcopy.addr;
-    task->bulk_buf_len = m->accept_bulkcopy.len;
+    task->bulk_len = m->accept_bulkcopy.len;
+
+    m->type = ACCEPT_BULKCOPY_REPLY_MSG;
     return OK;
 }
 
 static error_t handle_verify_bulkcopy(struct message *m) {
+    struct task *task = get_task_by_tid(m->src);
+    ASSERT(task);
+
+    if (m->verify_bulkcopy.src != task->received_bulk_from
+        || m->verify_bulkcopy.id != task->received_bulk_buf
+        || m->verify_bulkcopy.len != task->received_bulk_len) {
+        return ERR_INVALID_ARG;
+    }
+
+    m->type = VERIFY_BULKCOPY_REPLY_MSG;
+    m->verify_bulkcopy_reply.received_at = task->received_bulk_buf;
+
+    task->received_bulk_buf = 0;
+    task->received_bulk_len = 0;
+    task->received_bulk_from = 0;
     return OK;
 }
 
@@ -282,7 +305,7 @@ static error_t handle_do_bulkcopy(struct message *m) {
     size_t len = m->do_bulkcopy.len;
     vaddr_t src_buf = m->do_bulkcopy.addr;
     vaddr_t dst_buf = dst_task->bulk_buf;
-    DEBUG_ASSERT(len <= dst_task->bulk_buf_len);
+    DEBUG_ASSERT(len <= dst_task->bulk_len);
 
     size_t remaining = len;
     while (remaining > 0) {
@@ -313,12 +336,28 @@ static error_t handle_do_bulkcopy(struct message *m) {
         src_buf += copy_len;
     }
 
+    dst_task->received_bulk_buf = dst_task->bulk_buf;
+    dst_task->received_bulk_len = m->do_bulkcopy.len;
+    dst_task->received_bulk_from = src_task->tid;
+    dst_task->bulk_buf = 0;
+    dst_task->bulk_len = 0;
+
+    m->type = DO_BULKCOPY_REPLY_MSG;
+    m->do_bulkcopy_reply.id = dst_task->received_bulk_buf;
     return OK;
 }
 
 error_t call_self(struct message *m) {
-    DBG("CALL SELF");
-    return OK;
+    switch (m->type) {
+        case ACCEPT_BULKCOPY_MSG:
+            return handle_accept_bulkcopy(m);
+        case VERIFY_BULKCOPY_MSG:
+            return handle_verify_bulkcopy(m);
+        case DO_BULKCOPY_MSG:
+            return handle_do_bulkcopy(m);
+        default:
+            UNREACHABLE();
+    }
 }
 
 static error_t handle_message(struct message *m, task_t *reply_to) {
