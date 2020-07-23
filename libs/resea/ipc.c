@@ -6,7 +6,7 @@
 
 /// The internal buffer to receive bulk payloads.
 static void *bulk_ptr = NULL;
-static const size_t bulk_len = CONFIG_BULK_BUFFER_LEN;
+static const size_t bulk_len = 8192;// FIXME: CONFIG_BULK_BUFFER_LEN;
 bool __is_bootstrap(void);
 
 WEAK error_t call_self(struct message *m) {
@@ -66,7 +66,7 @@ static unsigned pre_send(task_t dst, struct message *m) {
         m2.type = VERIFY_BULKCOPY_MSG;
         m2.verify_bulkcopy.src = m->src;
         m2.verify_bulkcopy.id = (vaddr_t) m->bulk_ptr;
-        m2.verify_bulkcopy.len = bulk_len;
+        m2.verify_bulkcopy.len = m->bulk_len;
         error_t err = call_pager(&m2);
         OOPS_OK(err);
         ASSERT(m2.type == VERIFY_BULKCOPY_REPLY_MSG);

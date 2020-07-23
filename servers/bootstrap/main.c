@@ -270,6 +270,7 @@ static error_t handle_accept_bulkcopy(struct message *m) {
     struct task *task = get_task_by_tid(m->src);
     ASSERT(task);
 
+    INFO("accept: %s: %p %d (old=%p)", task->name, m->accept_bulkcopy.addr, m->accept_bulkcopy.len, task->bulk_buf);
     if (task->bulk_buf) {
         return ERR_ALREADY_EXISTS;
     }
@@ -285,6 +286,8 @@ static error_t handle_verify_bulkcopy(struct message *m) {
     struct task *task = get_task_by_tid(m->src);
     ASSERT(task);
 
+    INFO("verify: %s: id=%p len=%d (src=%d)", task->name,
+         m->verify_bulkcopy.id, m->verify_bulkcopy.len, m->src);
     if (m->verify_bulkcopy.src != task->received_bulk_from
         || m->verify_bulkcopy.id != task->received_bulk_buf
         || m->verify_bulkcopy.len != task->received_bulk_len) {
@@ -312,7 +315,11 @@ static error_t handle_do_bulkcopy(struct message *m) {
         return ERR_NOT_FOUND;
     }
 
-    if (dst_task->bulk_buf) {
+    INFO("do_copy: %s -> %s: %p -> %p, len=%d",
+        src_task->name, dst_task->name,
+        m->do_bulkcopy.addr, dst_task->bulk_buf,
+        m->do_bulkcopy.len);
+    if (!dst_task->bulk_buf) {
         // TODO: block the sender until it gets filled.
         PANIC("bulk_buf is not yet set");
     }
@@ -328,24 +335,37 @@ static error_t handle_do_bulkcopy(struct message *m) {
         offset_t dst_off = dst_buf % PAGE_SIZE;
         size_t copy_len = MIN(remaining, MIN(PAGE_SIZE - src_off, PAGE_SIZE - dst_off));
 
-        paddr_t src_paddr = vaddr2paddr(src_task, ALIGN_DOWN(src_buf, PAGE_SIZE));
-        if (!src_paddr) {
-            kill(src_task);
-            return DONT_REPLY;
+        void *src_ptr;
+        if (src_task->tid == INIT_TASK_TID) {
+            src_ptr = (void *) src_buf;
+        } else {
+            paddr_t src_paddr = vaddr2paddr(src_task, ALIGN_DOWN(src_buf, PAGE_SIZE));
+            if (!src_paddr) {
+                kill(src_task);
+                return DONT_REPLY;
+            }
+
+            ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __src_page, src_paddr));
+            src_ptr = &__src_page[src_off];
         }
 
-        paddr_t dst_paddr = vaddr2paddr(dst_task, ALIGN_DOWN(dst_buf, PAGE_SIZE));
-        if (!dst_paddr) {
-            kill(dst_task);
-            return ERR_UNAVAILABLE;
-        }
+        void *dst_ptr;
+        if (dst_task->tid == INIT_TASK_TID) {
+            dst_ptr = (void *) dst_buf;
+        } else {
+            paddr_t dst_paddr = vaddr2paddr(dst_task, ALIGN_DOWN(dst_buf, PAGE_SIZE));
+            if (!dst_paddr) {
+                kill(dst_task);
+                return ERR_UNAVAILABLE;
+            }
 
-        // Temporarily map the pages into the our address space.
-        ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __src_page, src_paddr));
-        ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __dst_page, dst_paddr));
+            // Temporarily map the pages into the our address space.
+            ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __dst_page, dst_paddr));
+            dst_ptr = &__dst_page[dst_off];
+        }
 
         // Copy between the tasks.
-        memcpy(&__src_page[src_off], &__dst_page[dst_buf], copy_len);
+        memcpy(dst_ptr, src_ptr, copy_len);
         remaining -= copy_len;
         dst_buf += copy_len;
         src_buf += copy_len;
@@ -390,8 +410,6 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             m->nop_reply.value = m->nop.value * 7;
             return OK;
         case NOP_WITH_BULK_MSG:
-            DBG("nop with bulk");
-            return OK;
             free((void *) m->nop_with_bulk.data);
             m->type = NOP_WITH_BULK_REPLY_MSG;
             m->nop_with_bulk_reply.data = "reply!";

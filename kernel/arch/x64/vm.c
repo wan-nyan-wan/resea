@@ -69,7 +69,8 @@ error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr, paddr_t kpage,
     }
 
     if (*entry) {
-        return ERR_ALREADY_EXISTS;
+        // FIXME:
+//        return ERR_ALREADY_EXISTS;
     }
 
     *entry = paddr | attrs;
