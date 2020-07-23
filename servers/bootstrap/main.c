@@ -366,7 +366,6 @@ static error_t handle_do_bulkcopy(struct message *m) {
         }
 
         // Copy between the tasks.
-        INFO("%p -> %p (%d)", src_buf, dst_buf, copy_len);
         memcpy(dst_ptr, src_ptr, copy_len);
         remaining -= copy_len;
         dst_buf += copy_len;
@@ -449,8 +448,6 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             ASSERT(task);
             ASSERT(m->page_fault.task == task->tid);
 
-            TRACE("page fault: %s v=%p, ip=%p", task->name, m->page_fault.vaddr,
-                m->page_fault.ip);
             paddr_t paddr =
                 pager(task, m->page_fault.vaddr, m->page_fault.fault);
             if (paddr) {
@@ -584,11 +581,7 @@ void main(void) {
     while (true) {
         struct message m;
         // TODO: bzero(m)
-        TRACE("<<< rply: %s %s (%d)",
-            msgtype2str(m.type), m.src ? get_task_by_tid(m.src)->name : "(kernel)", reply_to);
         error_t err = ipc_replyrecv(reply_to, &m);
-        TRACE(">>> recv: %s %s",
-            err2str(err), m.src ? get_task_by_tid(m.src)->name : "(kernel)");
         ASSERT_OK(err);
 
         reply_to = m.src;

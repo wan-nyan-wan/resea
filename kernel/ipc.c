@@ -47,14 +47,11 @@ static error_t ipc_slowpath(struct task *dst, task_t src, struct message *m,
             && (dst->src == IPC_ANY || dst->src == CURRENT->tid);
         if (!receiver_is_ready) {
             if (flags & IPC_NOBLOCK) {
-                DBG("wb: %s -> %s (%d src=%d)", CURRENT->name, dst->name,
-                    dst->state == TASK_BLOCKED, dst->src);
                 return ERR_WOULD_BLOCK;
             }
 
             // The receiver task is not ready. Sleep until it resumes the
             // current task.
-            DBG("blocking %s -> %s", CURRENT->name, dst->name);
             CURRENT->src = IPC_DENY;
             task_block(CURRENT);
             list_push_back(&dst->senders, &CURRENT->sender_next);
