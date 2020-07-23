@@ -269,13 +269,15 @@ void handle_irq(unsigned irq) {
 void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault) {
     ASSERT(CURRENT->pager != NULL);
 
+WARN("#PF: %s v=%p, ip=%p", CURRENT->name, addr, ip);
+
     struct message m;
     m.type = PAGE_FAULT_MSG;
     m.page_fault.task = CURRENT->tid;
     m.page_fault.vaddr = addr;
     m.page_fault.ip = ip;
     m.page_fault.fault = fault;
-    error_t err = ipc(CURRENT->pager, 0, &m, IPC_CALL | IPC_KERNEL);
+    error_t err = ipc(CURRENT->pager, CURRENT->pager->tid, &m, IPC_CALL | IPC_KERNEL);
     if (err != OK || m.type != PAGE_FAULT_REPLY_MSG) {
         task_exit(EXP_INVALID_MSG_FROM_PAGER);
     }

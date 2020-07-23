@@ -45,8 +45,9 @@ static unsigned pre_send(task_t dst, struct message *m) {
  }
 
  static void pre_recv(void) {
-     if (!bulk_ptr) {
+    if (!bulk_ptr) {
         bulk_ptr = malloc(bulk_len);
+        TRACE("%s: pre_recv", __program_name());
 
         struct message m;
         m.type = ACCEPT_BULKCOPY_MSG;
@@ -60,6 +61,8 @@ static unsigned pre_send(task_t dst, struct message *m) {
 
  static error_t post_recv(error_t err, struct message *m) {
     if (!IS_ERROR(m->type) && m->type & MSG_BULK) {
+        TRACE("%s: post_recv", __program_name());
+
         // Received a bulk payload.
         // TODO: add comment
         struct message m2;
@@ -68,7 +71,8 @@ static unsigned pre_send(task_t dst, struct message *m) {
         m2.verify_bulkcopy.id = (vaddr_t) m->bulk_ptr;
         m2.verify_bulkcopy.len = m->bulk_len;
         error_t err = call_pager(&m2);
-        OOPS_OK(err);
+        DBG("received a bulk_ptr: %s", err2str(err));
+        OOPS_OK(err); // FIXME:
         ASSERT(m2.type == VERIFY_BULKCOPY_REPLY_MSG);
         if (err != OK) {
             // FIXME: Use internal original error value to retry.

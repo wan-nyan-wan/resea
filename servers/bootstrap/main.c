@@ -270,7 +270,8 @@ static error_t handle_accept_bulkcopy(struct message *m) {
     struct task *task = get_task_by_tid(m->src);
     ASSERT(task);
 
-    INFO("accept: %s: %p %d (old=%p)", task->name, m->accept_bulkcopy.addr, m->accept_bulkcopy.len, task->bulk_buf);
+    INFO("accept: %s: %p %d (old=%p)",
+        task->name, m->accept_bulkcopy.addr, m->accept_bulkcopy.len, task->bulk_buf);
     if (task->bulk_buf) {
         return ERR_ALREADY_EXISTS;
     }
@@ -321,7 +322,7 @@ static error_t handle_do_bulkcopy(struct message *m) {
         m->do_bulkcopy.len);
     if (!dst_task->bulk_buf) {
         // TODO: block the sender until it gets filled.
-        PANIC("bulk_buf is not yet set");
+        PANIC("%s: bulk_buf is not yet set", dst_task->name);
     }
 
     size_t len = m->do_bulkcopy.len;
@@ -447,6 +448,8 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             ASSERT(task);
             ASSERT(m->page_fault.task == task->tid);
 
+            TRACE("page fault: %s v=%p, ip=%p", task->name, m->page_fault.vaddr,
+                m->page_fault.ip);
             paddr_t paddr =
                 pager(task, m->page_fault.vaddr, m->page_fault.fault);
             if (paddr) {
@@ -580,7 +583,11 @@ void main(void) {
     while (true) {
         struct message m;
         // TODO: bzero(m)
+        TRACE("<<< rply: %s %s (%d)",
+            msgtype2str(m.type), m.src ? get_task_by_tid(m.src)->name : "(kernel)", reply_to);
         error_t err = ipc_replyrecv(reply_to, &m);
+        TRACE(">>> recv: %s %s",
+            err2str(err), m.src ? get_task_by_tid(m.src)->name : "(kernel)");
         ASSERT_OK(err);
 
         reply_to = m.src;
