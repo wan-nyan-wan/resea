@@ -32,11 +32,17 @@ struct task {
     struct elf64_phdr *phdrs;
     vaddr_t free_vaddr;
     list_t page_areas;
+    vaddr_t bulk_buf;
+    size_t bulk_buf_len;
+    list_t bulk_sender_queue;
+    list_elem_t bulk_sender_next;
 };
 
 static struct task tasks[CONFIG_NUM_TASKS];
 static struct bootfs_file *files;
 static unsigned num_files;
+
+static paddr_t alloc_pages(struct task *task, vaddr_t vaddr, size_t num_pages);
 
 /// Look for the task in the our task table.
 static struct task *get_task_by_tid(task_t tid) {
@@ -92,6 +98,10 @@ static task_t launch_task(struct bootfs_file *file) {
     task->ehdr = ehdr;
     task->phdrs = (struct elf64_phdr *) ((uintptr_t) ehdr + ehdr->e_ehsize);
     task->free_vaddr = (vaddr_t) __free_vaddr;
+    task->bulk_buf = 0;
+    task->bulk_buf_len = 0;
+    list_init(&task->bulk_sender_queue);
+    list_nullify(&task->bulk_sender_next);
     strncpy(task->name, file->name, sizeof(task->name));
     list_init(&task->page_areas);
     return task->tid;
@@ -137,7 +147,7 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
     vaddr_t zeroed_pages_end = (vaddr_t) __zeroed_pages_end;
     if (zeroed_pages_start <= vaddr && vaddr < zeroed_pages_end) {
         // The accessed page is zeroed one (.bss section, stack, or heap).
-        paddr_t paddr = pages_alloc(1);
+        paddr_t paddr = alloc_pages(task, vaddr, 1);
         ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
         memset((void *) paddr, 0, PAGE_SIZE);
         return paddr;
@@ -164,7 +174,7 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
         return 0;
     }
     // Allocate a page and fill it with the file data.
-    paddr_t paddr = pages_alloc(1);
+    paddr_t paddr = alloc_pages(task, vaddr, 1);
     ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
     size_t offset_in_segment = (vaddr - phdr->p_vaddr) + phdr->p_offset;
     read_file(task->file, offset_in_segment, (void *) paddr, PAGE_SIZE);
@@ -193,8 +203,17 @@ static vaddr_t alloc_virt_pages(struct task *task, size_t num_pages) {
     return vaddr;
 }
 
-static error_t alloc_pages(struct task *task, vaddr_t *vaddr, paddr_t *paddr,
-                           size_t num_pages) {
+static paddr_t alloc_pages(struct task *task, vaddr_t vaddr, size_t num_pages) {
+    struct page_area *area = malloc(sizeof(*area));
+    area->vaddr = vaddr;
+    area->paddr = pages_alloc(num_pages);
+    area->num_pages = num_pages;
+    list_push_back(&task->page_areas, &area->next);
+    return area->paddr;
+}
+
+static error_t phy_alloc_pages(struct task *task, vaddr_t *vaddr, paddr_t *paddr,
+                               size_t num_pages) {
     if (*paddr && !is_mappable_paddr(*paddr)) {
         return ERR_INVALID_ARG;
     }
@@ -214,6 +233,89 @@ static error_t alloc_pages(struct task *task, vaddr_t *vaddr, paddr_t *paddr,
     return OK;
 }
 
+static paddr_t vaddr2paddr(struct task *task, vaddr_t vaddr) {
+    LIST_FOR_EACH (area, &task->page_areas, struct page_area, next) {
+        if (area->vaddr <= vaddr
+            && vaddr < area->vaddr + area->num_pages * PAGE_SIZE) {
+            return area->paddr + (vaddr - area->vaddr);
+        }
+    }
+
+    // The page is not mapped. Try filling it with pager.
+    return pager(task, vaddr, PF_USER | PF_WRITE /* FIXME: strip PF_WRITE */);
+}
+
+static error_t handle_accept_bulkcopy(struct message *m) {
+    struct task *task = get_task_by_tid(m->src);
+    ASSERT(task);
+
+    if (task->bulk_buf) {
+        return ERR_ALREADY_EXISTS;
+    }
+
+    task->bulk_buf = m->accept_bulkcopy.addr;
+    task->bulk_buf_len = m->accept_bulkcopy.len;
+    return OK;
+}
+
+static error_t handle_verify_bulkcopy(struct message *m) {
+    return OK;
+}
+
+uint8_t __src_page[PAGE_SIZE] ALIGNED(PAGE_SIZE);
+uint8_t __dst_page[PAGE_SIZE] ALIGNED(PAGE_SIZE);
+
+static error_t handle_do_bulkcopy(struct message *m) {
+    struct task *src_task = get_task_by_tid(m->src);
+    ASSERT(src_task);
+
+    struct task *dst_task = get_task_by_tid(m->do_bulkcopy.dst);
+    if (!dst_task) {
+        return ERR_NOT_FOUND;
+    }
+
+    if (dst_task->bulk_buf) {
+        // TODO: block the sender until it gets filled.
+        PANIC("bulk_buf is not yet set");
+    }
+
+    size_t len = m->do_bulkcopy.len;
+    vaddr_t src_buf = m->do_bulkcopy.addr;
+    vaddr_t dst_buf = dst_task->bulk_buf;
+    DEBUG_ASSERT(len <= dst_task->bulk_buf_len);
+
+    size_t remaining = len;
+    while (remaining > 0) {
+        offset_t src_off = src_buf % PAGE_SIZE;
+        offset_t dst_off = dst_buf % PAGE_SIZE;
+        size_t copy_len = MIN(remaining, MIN(PAGE_SIZE - src_off, PAGE_SIZE - dst_off));
+
+        paddr_t src_paddr = vaddr2paddr(src_task, ALIGN_DOWN(src_buf, PAGE_SIZE));
+        if (!src_paddr) {
+            kill(src_task);
+            return DONT_REPLY;
+        }
+
+        paddr_t dst_paddr = vaddr2paddr(dst_task, ALIGN_DOWN(dst_buf, PAGE_SIZE));
+        if (!dst_paddr) {
+            kill(dst_task);
+            return ERR_UNAVAILABLE;
+        }
+
+        // Temporarily map the pages into the our address space.
+        ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __src_page, src_paddr));
+        ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __dst_page, dst_paddr));
+
+        // Copy between the tasks.
+        memcpy(&__src_page[src_off], &__dst_page[dst_buf], copy_len);
+        remaining -= copy_len;
+        dst_buf += copy_len;
+        src_buf += copy_len;
+    }
+
+    return OK;
+}
+
 error_t call_self(struct message *m) {
     DBG("CALL SELF");
     return OK;
@@ -221,6 +323,12 @@ error_t call_self(struct message *m) {
 
 static error_t handle_message(struct message *m, task_t *reply_to) {
     switch (m->type) {
+        case ACCEPT_BULKCOPY_MSG:
+            return handle_accept_bulkcopy(m);
+        case VERIFY_BULKCOPY_MSG:
+            return handle_verify_bulkcopy(m);
+        case DO_BULKCOPY_MSG:
+            return handle_do_bulkcopy(m);
         case NOP_MSG:
             m->type = NOP_REPLY_MSG;
             m->nop_reply.value = m->nop.value * 7;
@@ -305,7 +413,7 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             vaddr_t vaddr;
             paddr_t paddr = m->alloc_pages.paddr;
             error_t err =
-                alloc_pages(task, &vaddr, &paddr, m->alloc_pages.num_pages);
+                phy_alloc_pages(task, &vaddr, &paddr, m->alloc_pages.num_pages);
             if (err != OK) {
                 return err;
             }
