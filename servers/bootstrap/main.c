@@ -64,6 +64,30 @@ static void read_file(struct bootfs_file *file, offset_t off, void *buf, size_t 
     memcpy(buf, p, len);
 }
 
+static void init_task_struct(struct task *task, const char *name,
+    struct bootfs_file *file, void *file_header, struct elf64_ehdr *ehdr) {
+    task->in_use = true;
+    task->file = file;
+    task->file_header = file_header;
+    task->ehdr = ehdr;
+    if (ehdr) {
+        task->phdrs = (struct elf64_phdr *) ((uintptr_t) ehdr + ehdr->e_ehsize);
+    } else {
+        task->phdrs = NULL;
+    }
+
+    task->free_vaddr = (vaddr_t) __free_vaddr;
+    task->bulk_buf = 0;
+    task->bulk_len = 0;
+    task->received_bulk_buf = 0;
+    task->received_bulk_len = 0;
+    task->received_bulk_from = 0;
+    list_init(&task->bulk_sender_queue);
+    list_nullify(&task->bulk_sender_next);
+    strncpy(task->name, name, sizeof(task->name));
+    list_init(&task->page_areas);
+}
+
 static task_t launch_task(struct bootfs_file *file) {
     TRACE("launching %s...", file->name);
 
@@ -95,21 +119,7 @@ static task_t launch_task(struct bootfs_file *file) {
         task_create(task->tid, file->name, ehdr->e_entry, task_self(), TASK_IO);
     ASSERT_OK(err);
 
-    task->in_use = true;
-    task->file = file;
-    task->file_header = file_header;
-    task->ehdr = ehdr;
-    task->phdrs = (struct elf64_phdr *) ((uintptr_t) ehdr + ehdr->e_ehsize);
-    task->free_vaddr = (vaddr_t) __free_vaddr;
-    task->bulk_buf = 0;
-    task->bulk_len = 0;
-    task->received_bulk_buf = 0;
-    task->received_bulk_len = 0;
-    task->received_bulk_from = 0;
-    list_init(&task->bulk_sender_queue);
-    list_nullify(&task->bulk_sender_next);
-    strncpy(task->name, file->name, sizeof(task->name));
-    list_init(&task->page_areas);
+    init_task_struct(task, file->name, file, file_header, ehdr);
     return task->tid;
 }
 
@@ -161,36 +171,41 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
 
     // Look for the associated program header.
     struct elf64_phdr *phdr = NULL;
-    for (unsigned i = 0; i < task->ehdr->e_phnum; i++) {
-        // Ignore GNU_STACK
-        if (!task->phdrs[i].p_vaddr) {
-            continue;
+    if (task->ehdr) {
+        for (unsigned i = 0; i < task->ehdr->e_phnum; i++) {
+            // Ignore GNU_STACK
+            if (!task->phdrs[i].p_vaddr) {
+                continue;
+            }
+
+            vaddr_t start = task->phdrs[i].p_vaddr;
+            vaddr_t end = start + task->phdrs[i].p_memsz;
+            if (start <= vaddr && vaddr <= end) {
+                phdr = &task->phdrs[i];
+                break;
+            }
         }
 
-        vaddr_t start = task->phdrs[i].p_vaddr;
-        vaddr_t end = start + task->phdrs[i].p_memsz;
-        if (start <= vaddr && vaddr <= end) {
-            phdr = &task->phdrs[i];
-            break;
+        if (phdr) {
+            // Allocate a page and fill it with the file data.
+            paddr_t paddr = alloc_pages(task, vaddr, 1);
+            ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
+            size_t offset_in_segment = (vaddr - phdr->p_vaddr) + phdr->p_offset;
+            read_file(task->file, offset_in_segment, (void *) paddr, PAGE_SIZE);
+            return paddr;
         }
     }
 
-    if (!phdr) {
-        WARN("invalid memory access (addr=%p), killing %s...", vaddr, task->name);
-        return 0;
-    }
-    // Allocate a page and fill it with the file data.
-    paddr_t paddr = alloc_pages(task, vaddr, 1);
-    ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
-    size_t offset_in_segment = (vaddr - phdr->p_vaddr) + phdr->p_offset;
-    read_file(task->file, offset_in_segment, (void *) paddr, PAGE_SIZE);
-    return paddr;
+    WARN("invalid memory access (addr=%p), killing %s...", vaddr, task->name);
+    return 0;
 }
 
 static void kill(struct task *task) {
     task_destroy(task->tid);
     task->in_use = false;
-    free(task->file_header);
+    if (task->file_header) {
+        free(task->file_header);
+    }
 }
 
 /// Allocates a virtual address space by so-called the bump pointer allocation
@@ -348,6 +363,8 @@ static error_t handle_do_bulkcopy(struct message *m) {
 }
 
 error_t call_self(struct message *m) {
+    DBG("call self");
+    m->src = INIT_TASK_TID;
     switch (m->type) {
         case ACCEPT_BULKCOPY_MSG:
             return handle_accept_bulkcopy(m);
@@ -373,6 +390,8 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             m->nop_reply.value = m->nop.value * 7;
             return OK;
         case NOP_WITH_BULK_MSG:
+            DBG("nop with bulk");
+            return OK;
             free((void *) m->nop_with_bulk.data);
             m->type = NOP_WITH_BULK_REPLY_MSG;
             m->nop_with_bulk_reply.data = "reply!";
@@ -502,9 +521,8 @@ void main(void) {
         tasks[i].tid = i + 1;
     }
 
-    // Mark init as in use.
-    tasks[0].in_use = true;
-    strncpy(tasks[0].name, "bootstrap", sizeof(tasks[0].name));
+    // Initialize a task struct for bootstrap.
+    init_task_struct(&tasks[INIT_TASK_TID - 1], "bootstrap", NULL, NULL, NULL);
 
     // Launch servers in bootfs.
     int num_launched = 0;
