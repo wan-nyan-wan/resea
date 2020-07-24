@@ -42,10 +42,10 @@ static void *alloc_page(void) {
 }
 
 static error_t map_page(struct vm *vm, vaddr_t vaddr, paddr_t paddr,
-                        pageattrs_t attrs) {
+                        unsigned flags) {
     while (true) {
         paddr_t kpage = into_paddr(alloc_page());
-        error_t err = vm_link(vm, vaddr, paddr, kpage, attrs);
+        error_t err = vm_link(vm, vaddr, paddr, kpage, MAP_UPDATE | flags);
         if (err != ERR_TRY_AGAIN) {
             return err;
         }
@@ -77,21 +77,20 @@ void map_bootelf(struct bootelf_header *header, struct vm *vm) {
         ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
         ASSERT(IS_ALIGNED(paddr, PAGE_SIZE));
 
-        pageattrs_t attrs = PAGE_USER | PAGE_WRITABLE;
         if (m->zeroed) {
             INFO("map zero %d", m->num_pages);
             for (size_t j = 0; j < m->num_pages; j++) {
                 void *page = alloc_page();
                 ASSERT(page);
                 memset(page, 0, PAGE_SIZE);
-                error_t err = map_page(vm, vaddr, into_paddr(page), attrs);
+                error_t err = map_page(vm, vaddr, into_paddr(page), MAP_W);
                 ASSERT_OK(err);
                 vaddr += PAGE_SIZE;
             }
         } else {
             INFO("map filled %d", m->num_pages);
             for (size_t j = 0; j < m->num_pages; j++) {
-                error_t err = map_page(vm, vaddr, paddr, attrs);
+                error_t err = map_page(vm, vaddr, paddr, MAP_W);
                 ASSERT_OK(err);
                 vaddr += PAGE_SIZE;
                 paddr += PAGE_SIZE;

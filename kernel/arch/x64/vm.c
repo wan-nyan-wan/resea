@@ -4,9 +4,10 @@
 #include "vm.h"
 
 static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
-                                     paddr_t page, pageattrs_t attrs) {
+                                     paddr_t kpage, pageattrs_t attrs) {
     ASSERT(vaddr < KERNEL_BASE_ADDR);
     ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
+    ASSERT(IS_ALIGNED(kpage, PAGE_SIZE));
 
     uint64_t *table = from_paddr(pml4);
     for (int level = 4; level > 1; level--) {
@@ -17,13 +18,13 @@ static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
             }
 
             /* The PDPT, PD or PT is not allocated. */
-            if (!page) {
+            if (!kpage) {
                 return NULL;
             }
 
-            memset(from_paddr(page), 0, PAGE_SIZE);
-            table[index] = page;
-            page = 0;
+            memset(from_paddr(kpage), 0, PAGE_SIZE);
+            table[index] = kpage;
+            kpage = 0;
         }
 
         // Update attributes if given.
@@ -56,26 +57,28 @@ void vm_destroy(struct vm *vm) {
 }
 
 error_t vm_link(struct vm *vm, vaddr_t vaddr, paddr_t paddr, paddr_t kpage,
-                pageattrs_t attrs) {
-    ASSERT(vaddr < KERNEL_BASE_ADDR);
-    ASSERT(IS_ALIGNED(vaddr, PAGE_SIZE));
+                unsigned flags) {
     ASSERT(IS_ALIGNED(paddr, PAGE_SIZE));
-    ASSERT(IS_ALIGNED(kpage, PAGE_SIZE));
 
-    attrs |= PAGE_PRESENT;
+    pageattrs_t attrs = PAGE_PRESENT | PAGE_USER;
+    attrs |= (flags & MAP_W) ? PAGE_WRITABLE : 0;
+
     uint64_t *entry = traverse_page_table(vm->pml4, vaddr, kpage, attrs);
     if (!entry) {
         return (kpage) ? ERR_TRY_AGAIN : ERR_EMPTY;
     }
 
-    if (*entry) {
-        // FIXME:
-//        return ERR_ALREADY_EXISTS;
-    }
-
     *entry = paddr | attrs;
     asm_invlpg(vaddr);
     return OK;
+}
+
+void vm_unlink(struct vm *vm, vaddr_t vaddr) {
+    uint64_t *entry = traverse_page_table(vm->pml4, vaddr, 0, 0);
+    if (entry) {
+        *entry = 0;
+        asm_invlpg(vaddr);
+    }
 }
 
 paddr_t vm_resolve(struct vm *vm, vaddr_t vaddr) {

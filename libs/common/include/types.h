@@ -94,6 +94,11 @@ typedef int error_t;
 #define TASK_IO      (1 << 0)
 #define TASK_ABI_EMU (1 << 1)
 
+// Map flags.
+#define MAP_UPDATE (1 << 0)
+#define MAP_DELETE (1 << 1)
+#define MAP_W      (1 << 2)
+
 // IPC source task IDs.
 #define IPC_ANY     0  /* So-called "open receive". */
 #define IPC_DENY    -1 /* Blocked in the IPC send phase. Internally used by kernel. */

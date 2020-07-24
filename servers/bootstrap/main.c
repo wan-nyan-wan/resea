@@ -124,10 +124,12 @@ static task_t launch_task(struct bootfs_file *file) {
     return task->tid;
 }
 
-static error_t do_map_page(task_t tid, vaddr_t vaddr, paddr_t paddr) {
+static error_t map_page(task_t tid, vaddr_t vaddr, paddr_t paddr,
+                        unsigned flags, bool overwrite) {
+    flags |= overwrite ? (MAP_DELETE | MAP_UPDATE) : MAP_UPDATE;
     while (true) {
         paddr_t kpage = pages_alloc(1);
-        error_t err = task_map(tid, vaddr, paddr, kpage, 0 /* TODO: */);
+        error_t err = task_map(tid, vaddr, paddr, kpage, flags);
         switch (err) {
             case ERR_TRY_AGAIN:
                 continue;
@@ -135,10 +137,6 @@ static error_t do_map_page(task_t tid, vaddr_t vaddr, paddr_t paddr) {
                 return err;
         }
     }
-}
-
-static error_t map_page(struct task *task, vaddr_t vaddr, paddr_t paddr) {
-    return do_map_page(task->tid, vaddr, paddr);
 }
 
 static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
@@ -165,7 +163,7 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
     if (zeroed_pages_start <= vaddr && vaddr < zeroed_pages_end) {
         // The accessed page is zeroed one (.bss section, stack, or heap).
         paddr_t paddr = alloc_pages(task, vaddr, 1);
-        ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
+        ASSERT_OK(map_page(INIT_TASK_TID, paddr, paddr, MAP_W, false));
         memset((void *) paddr, 0, PAGE_SIZE);
         return paddr;
     }
@@ -190,7 +188,7 @@ static paddr_t pager(struct task *task, vaddr_t vaddr, pagefault_t fault) {
         if (phdr) {
             // Allocate a page and fill it with the file data.
             paddr_t paddr = alloc_pages(task, vaddr, 1);
-            ASSERT_OK(do_map_page(INIT_TASK_TID, paddr, paddr));
+            ASSERT_OK(map_page(INIT_TASK_TID, paddr, paddr, MAP_W, false));
             size_t offset_in_segment = (vaddr - phdr->p_vaddr) + phdr->p_offset;
             read_file(task->file, offset_in_segment, (void *) paddr, PAGE_SIZE);
             return paddr;
@@ -374,7 +372,8 @@ static error_t handle_do_bulkcopy(struct message *m) {
                 return DONT_REPLY;
             }
 
-            ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __src_page, src_paddr));
+            ASSERT_OK(map_page(INIT_TASK_TID, (vaddr_t) __src_page, src_paddr,
+                               MAP_W, true));
             src_ptr = &__src_page[src_off];
         }
 
@@ -389,7 +388,8 @@ static error_t handle_do_bulkcopy(struct message *m) {
             }
 
             // Temporarily map the pages into the our address space.
-            ASSERT_OK(do_map_page(INIT_TASK_TID, (vaddr_t) __dst_page, dst_paddr));
+            ASSERT_OK(map_page(INIT_TASK_TID, (vaddr_t) __dst_page, dst_paddr,
+                               MAP_W, true));
             dst_ptr = &__dst_page[dst_off];
         }
 
@@ -491,7 +491,7 @@ static error_t handle_message(struct message *m, task_t *reply_to) {
             if (paddr) {
                 vaddr_t aligned_vaddr =
                     ALIGN_DOWN(m->page_fault.vaddr, PAGE_SIZE);
-                ASSERT_OK(map_page(task, aligned_vaddr, paddr));
+                ASSERT_OK(map_page(task->tid, aligned_vaddr, paddr, MAP_W, false));
                 m->type = PAGE_FAULT_REPLY_MSG;
                 *reply_to = task->tid;
                 return OK;

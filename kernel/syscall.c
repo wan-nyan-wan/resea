@@ -212,9 +212,20 @@ static error_t sys_map(task_t tid, vaddr_t vaddr, vaddr_t src, vaddr_t kpage,
         return ERR_NOT_FOUND;
     }
 
-    // TODO: Use flags
     // TODO: pages[pfn]
-    return vm_link(&task->vm, vaddr, paddr, kpage, PAGE_USER | PAGE_WRITABLE);
+
+    if (flags & MAP_DELETE) {
+        vm_unlink(&task->vm, vaddr);
+    }
+
+    if (flags & MAP_UPDATE) {
+        error_t err = vm_link(&task->vm, vaddr, paddr, kpage, flags);
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    return OK;
 }
 
 /// The system call handler.
