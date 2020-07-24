@@ -39,6 +39,7 @@ struct task {
     size_t received_bulk_len;
     list_t bulk_sender_queue;
     list_elem_t bulk_sender_next;
+    struct message bulk_sender_m;
 };
 
 static struct task tasks[CONFIG_NUM_TASKS];
@@ -266,6 +267,8 @@ static paddr_t vaddr2paddr(struct task *task, vaddr_t vaddr) {
     return pager(task, vaddr, PF_USER | PF_WRITE /* FIXME: strip PF_WRITE */);
 }
 
+static error_t handle_do_bulkcopy(struct message *m);
+
 static error_t handle_accept_bulkcopy(struct message *m) {
     struct task *task = get_task_by_tid(m->src);
     ASSERT(task);
@@ -278,6 +281,27 @@ static error_t handle_accept_bulkcopy(struct message *m) {
 
     task->bulk_buf = m->accept_bulkcopy.addr;
     task->bulk_len = m->accept_bulkcopy.len;
+
+    struct task *sender = LIST_POP_FRONT(&task->bulk_sender_queue, struct task,
+                                         bulk_sender_next);
+    if (sender) {
+        struct message m;
+        memcpy(&m, &sender->bulk_sender_m, sizeof(m));
+        INFO("%s -> %s: src = %d / %d", task->name, sender->name,
+            sender->bulk_sender_m.src, m.src);
+        error_t err = handle_do_bulkcopy(&m);
+        switch (err) {
+            case OK:
+                ipc_reply(sender->tid, &m);
+                break;
+            case DONT_REPLY:
+                // Do nothing.
+                break;
+            default:
+                OOPS_OK(err);
+                ipc_reply_err(sender->tid, err);
+        }
+    }
 
     m->type = ACCEPT_BULKCOPY_REPLY_MSG;
     return OK;
@@ -322,7 +346,11 @@ static error_t handle_do_bulkcopy(struct message *m) {
         m->do_bulkcopy.len);
     if (!dst_task->bulk_buf) {
         // TODO: block the sender until it gets filled.
-        PANIC("%s: bulk_buf is not yet set", dst_task->name);
+        DBG("%s: bulk_buf is not yet set", dst_task->name);
+        memcpy(&src_task->bulk_sender_m, m, sizeof(*m));
+        INFO("src = %d", m->src);
+        list_push_back(&dst_task->bulk_sender_queue, &src_task->bulk_sender_next);
+        return DONT_REPLY;
     }
 
     size_t len = m->do_bulkcopy.len;
@@ -386,16 +414,26 @@ static error_t handle_do_bulkcopy(struct message *m) {
 error_t call_self(struct message *m) {
     DBG("call self");
     m->src = INIT_TASK_TID;
+    error_t err;
     switch (m->type) {
         case ACCEPT_BULKCOPY_MSG:
-            return handle_accept_bulkcopy(m);
+            err = handle_accept_bulkcopy(m);
+            break;
         case VERIFY_BULKCOPY_MSG:
-            return handle_verify_bulkcopy(m);
+            err = handle_verify_bulkcopy(m);
+            break;
         case DO_BULKCOPY_MSG:
-            return handle_do_bulkcopy(m);
+            err = handle_do_bulkcopy(m);
+            break;
         default:
             UNREACHABLE();
     }
+
+    if (err != OK) {
+        PANIC("call_self failed (%s)", err2str(err));
+    }
+
+    return err;
 }
 
 static error_t handle_message(struct message *m, task_t *reply_to) {
