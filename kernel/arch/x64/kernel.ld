@@ -2,13 +2,13 @@ OUTPUT_FORMAT("elf64-x86-64");
 ENTRY(boot);
 
 LMA_OFFSET = 0xffff800000000000;
-KERNEL_BOOT_ADDR = 0x100000;
 
 MEMORY {
     boot_ram (rwx): ORIGIN = 0x0000000000100000, LENGTH = 0x0200000
     ram (rwx):      ORIGIN = 0xffff800000300000, LENGTH = 0x2e00000
     lma_ram (rwx):  ORIGIN = 0x0000000000300000, LENGTH = 0x2e00000
 }
+
 SECTIONS {
     . = 0x5000;
     __mp_boot_trampoine = .;

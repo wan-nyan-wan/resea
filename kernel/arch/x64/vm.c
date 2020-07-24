@@ -30,13 +30,10 @@ static uint64_t *traverse_page_table(uint64_t pml4, vaddr_t vaddr,
         // Update attributes if given.
         table[index] = table[index] | attrs;
 
-//        INFO("level=%d, table[index]=%p", level, table[index]);
-
         // Go into the next level paging table.
         table = (uint64_t *) from_paddr(ENTRY_PADDR(table[index]));
     }
 
-//    INFO("level=0, table[index]=%p (%d)", table[NTH_LEVEL_INDEX(1, vaddr)], NTH_LEVEL_INDEX(1, vaddr));
     return &table[NTH_LEVEL_INDEX(1, vaddr)];
 }
 

@@ -179,6 +179,9 @@ static error_t sys_kdebug(userptr_t cmdline) {
 static paddr_t resolve_paddr(vaddr_t vaddr) {
     if (CURRENT->tid == INIT_TASK_TID) {
         if (is_kernel_paddr(vaddr)) {
+extern char __kernel_image[];
+extern char __kernel_image_end[];
+    DBG("vadr %p = %p %p", vaddr, __kernel_image, __kernel_image_end);
             return 0;
         }
         return vaddr;
