@@ -46,9 +46,10 @@ static struct malloc_chunk *insert(void *ptr, size_t len) {
 
 static struct malloc_chunk *split(struct malloc_chunk *chunk, size_t len) {
     size_t new_chunk_len = MALLOC_FRAME_LEN + len;
+    ASSERT(chunk->capacity >= new_chunk_len);
+
     void *new_chunk =
         &chunk->data[chunk->capacity + MALLOC_REDZONE_LEN - new_chunk_len];
-    ASSERT(chunk->capacity >= new_chunk_len);
     chunk->capacity -= new_chunk_len;
     return insert(new_chunk, new_chunk_len);
 }
@@ -69,7 +70,7 @@ void *malloc(size_t size) {
 
         struct malloc_chunk *allocated = NULL;
         if (chunk->capacity > size + MALLOC_FRAME_LEN) {
-            allocated = split(chunk, size + MALLOC_FRAME_LEN);
+            allocated = split(chunk, size);
         } else if (chunk->capacity >= size) {
             allocated = chunk;
         }
