@@ -12,7 +12,7 @@ MEMORY {
 SECTIONS {
     . = 0x5000;
     __mp_boot_trampoine = .;
-    . += 0x1000;
+    . = 0x6000;
     __mp_boot_trampoine_end = .;
     __mp_boot_gdtr = .;
 
