@@ -68,7 +68,6 @@ void main(void) {
         error_t err = ipc_recv(IPC_ANY, &m);
         ASSERT_OK(err);
 
-        DBG("e1000 = %s", msgtype2str(m.type));
         switch (m.type) {
             case NOTIFICATIONS_MSG:
                 if (m.notifications.data & NOTIFY_IRQ) {

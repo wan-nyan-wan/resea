@@ -271,8 +271,8 @@ static error_t handle_accept_bulkcopy(struct message *m) {
     struct task *task = get_task_by_tid(m->src);
     ASSERT(task);
 
-    INFO("accept: %s: %p %d (old=%p)",
-        task->name, m->accept_bulkcopy.addr, m->accept_bulkcopy.len, task->bulk_buf);
+//    TRACE("accept: %s: %p %d (old=%p)",
+//        task->name, m->accept_bulkcopy.addr, m->accept_bulkcopy.len, task->bulk_buf);
     if (task->bulk_buf) {
         return ERR_ALREADY_EXISTS;
     }
@@ -285,8 +285,8 @@ static error_t handle_accept_bulkcopy(struct message *m) {
     if (sender) {
         struct message m;
         memcpy(&m, &sender->bulk_sender_m, sizeof(m));
-        INFO("%s -> %s: src = %d / %d", task->name, sender->name,
-            sender->bulk_sender_m.src, m.src);
+//        TRACE("%s -> %s: src = %d / %d", task->name, sender->name,
+//              sender->bulk_sender_m.src, m.src);
         error_t err = handle_do_bulkcopy(&m);
         switch (err) {
             case OK:
@@ -309,8 +309,8 @@ static error_t handle_verify_bulkcopy(struct message *m) {
     struct task *task = get_task_by_tid(m->src);
     ASSERT(task);
 
-    INFO("verify: %s: id=%p len=%d (src=%d)", task->name,
-         m->verify_bulkcopy.id, m->verify_bulkcopy.len, m->src);
+//    TRACE("verify: %s: id=%p len=%d (src=%d)", task->name,
+//          m->verify_bulkcopy.id, m->verify_bulkcopy.len, m->src);
     if (m->verify_bulkcopy.src != task->received_bulk_from
         || m->verify_bulkcopy.id != task->received_bulk_buf
         || m->verify_bulkcopy.len != task->received_bulk_len) {
@@ -338,15 +338,13 @@ static error_t handle_do_bulkcopy(struct message *m) {
         return ERR_NOT_FOUND;
     }
 
-    INFO("do_copy: %s -> %s: %p -> %p, len=%d",
-        src_task->name, dst_task->name,
-        m->do_bulkcopy.addr, dst_task->bulk_buf,
-        m->do_bulkcopy.len);
+//    TRACE("do_copy: %s -> %s: %p -> %p, len=%d",
+//        src_task->name, dst_task->name,
+//        m->do_bulkcopy.addr, dst_task->bulk_buf,
+//        m->do_bulkcopy.len);
     if (!dst_task->bulk_buf) {
         // TODO: block the sender until it gets filled.
-        DBG("%s: bulk_buf is not yet set", dst_task->name);
         memcpy(&src_task->bulk_sender_m, m, sizeof(*m));
-        INFO("src = %d", m->src);
         list_push_back(&dst_task->bulk_sender_queue, &src_task->bulk_sender_next);
         return DONT_REPLY;
     }
@@ -412,7 +410,6 @@ static error_t handle_do_bulkcopy(struct message *m) {
 }
 
 error_t call_self(struct message *m) {
-    DBG("call self");
     m->src = INIT_TASK_TID;
     error_t err;
     switch (m->type) {

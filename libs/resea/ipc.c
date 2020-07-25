@@ -53,7 +53,6 @@ static void post_send_only(struct message *m, void **saved_bulk_ptr) {
  static void pre_recv(void) {
     if (!bulk_ptr) {
         bulk_ptr = malloc(bulk_len);
-        TRACE("%s: pre_recv", __program_name());
 
         struct message m;
         m.type = ACCEPT_BULKCOPY_MSG;
@@ -67,7 +66,6 @@ static void post_send_only(struct message *m, void **saved_bulk_ptr) {
 
  static error_t post_recv(error_t err, struct message *m) {
     if (!IS_ERROR(m->type) && m->type & MSG_BULK) {
-        TRACE("%s: post_recv", __program_name());
 
         // Received a bulk payload.
         // TODO: add comment

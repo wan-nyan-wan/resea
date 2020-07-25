@@ -269,8 +269,6 @@ void handle_irq(unsigned irq) {
 void handle_page_fault(vaddr_t addr, vaddr_t ip, pagefault_t fault) {
     ASSERT(CURRENT->pager != NULL);
 
-WARN("#PF: %s v=%p, ip=%p", CURRENT->name, addr, ip);
-
     struct message m;
     m.type = PAGE_FAULT_MSG;
     m.page_fault.task = CURRENT->tid;
