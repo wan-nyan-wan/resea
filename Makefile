@@ -258,7 +258,6 @@ $(BUILD_DIR)/libs/%.lib.o:
 #
 #  Server build rules
 #
-rust_objs = $(if $(1),$(BUILD_DIR)/$(2).a,)
 define server-build-rule
 $(eval dir := servers/$(1))
 $(eval name :=)
@@ -266,6 +265,7 @@ $(eval objs :=)
 $(eval libs := $(builtin_libs))
 $(eval cflags :=)
 $(eval build_mks :=)
+$(eval rust :=)
 $(eval objs += $(BUILD_DIR)/servers/$(1)/__name__.o)
 $(eval objs += $(foreach lib, $(libs), $(BUILD_DIR)/libs/$(lib).lib.o))
 $(eval $(call visit-subdir,$(dir),$(BUILD_DIR)))
@@ -273,8 +273,8 @@ $(eval $(BUILD_DIR)/servers/$(1)/__name__.c: name := $(name))
 $(eval $(BUILD_DIR)/$(1).elf: name := $(name))
 $(eval $(BUILD_DIR)/$(1).debug.elf: name := $(name))
 $(eval $(BUILD_DIR)/$(1).debug.elf: objs := $(objs))
-$(eval $(BUILD_DIR)/$(1).debug.elf: objs += $(call rust_objs,$(rust),$(name)))
-$(eval $(BUILD_DIR)/$(1).debug.elf: $(objs) $(call rust_objs,$(rust),$(name)) $(build_mks))
+$(eval $(BUILD_DIR)/$(1).debug.elf: objs += $(if $(rust),$(BUILD_DIR)/$(name).a))
+$(eval $(BUILD_DIR)/$(1).debug.elf: $(objs) $(if $(rust),$(BUILD_DIR)/$(name).a) $(build_mks))
 $(eval $(objs): CFLAGS += $(cflags))
 $(eval $(objs): CFLAGS += -DBOOTSTRAP)
 $(foreach lib, $(all_libs),
