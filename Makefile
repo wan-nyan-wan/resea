@@ -92,6 +92,7 @@ OBJCOPY    := $(LLVM_PREFIX)llvm-objcopy$(LLVM_SUFFIX)
 CLANG_TIDY := $(LLVM_PREFIX)clang-tidy$(LLVM_SUFFIX)
 PROGRESS   := printf "  \\033[1;96m%8s\\033[0m  \\033[1;m%s\\033[0m\\n"
 PYTHON3    ?= python3
+CARGO      ?= cargo
 
 CFLAGS += -g3 -std=c11 -ffreestanding -fno-builtin -nostdlib -nostdinc
 CFLAGS += -Wall -Wextra
@@ -112,10 +113,16 @@ CFLAGS += -DBOOTELF_PATH='"$(BUILD_DIR)/$(bootstrap).elf"'
 CFLAGS += -DBOOTFS_PATH='"$(bootfs_bin)"'
 CFLAGS += -DAUTOSTARTS='"$(autostarts)"'
 
+CARGOFLAGS +=
+RUSTFLAGS += -C lto -Z emit-stack-sizes -Z external-macro-backtrace
+
 ifdef CONFIG_BUILD_RELEASE
+RUST_BUILD := release
 CFLAGS += -O2 -flto
 else
+RUST_BUILD := debug
 CFLAGS += -O1 -fsanitize=undefined
+RUSTFLAGS += -C opt-level=3 -C debug_assertions=no
 endif
 
 #
@@ -251,6 +258,7 @@ $(BUILD_DIR)/libs/%.lib.o:
 #
 #  Server build rules
 #
+rust_objs = $(if $(1),$(BUILD_DIR)/$(2).rlib,)
 define server-build-rule
 $(eval dir := servers/$(1))
 $(eval name :=)
@@ -265,7 +273,8 @@ $(eval $(BUILD_DIR)/servers/$(1)/__name__.c: name := $(name))
 $(eval $(BUILD_DIR)/$(1).elf: name := $(name))
 $(eval $(BUILD_DIR)/$(1).debug.elf: name := $(name))
 $(eval $(BUILD_DIR)/$(1).debug.elf: objs := $(objs))
-$(eval $(BUILD_DIR)/$(1).debug.elf: $(objs) $(build_mks))
+$(eval $(BUILD_DIR)/$(1).debug.elf: objs += $(call rust_objs,$(rust),$(name)))
+$(eval $(BUILD_DIR)/$(1).debug.elf: $(objs) $(call rust_objs,$(rust),$(name)) $(build_mks))
 $(eval $(objs): CFLAGS += $(cflags))
 $(eval $(objs): CFLAGS += -DBOOTSTRAP)
 $(foreach lib, $(all_libs),
@@ -305,4 +314,16 @@ $(BUILD_DIR)/%.elf: $(BUILD_DIR)/%.debug.elf ./tools/embed-bootelf-header.py
 	$(OBJCOPY) --strip-all-gnu --strip-debug $< $@
 	./tools/embed-bootelf-header.py --name=$(name) $(@)
 
+# Rust
+$(BUILD_DIR)/%.rlib:
+	$(PROGRESS) "CARGO" servers/$(name)
+	mkdir -p $(BUILD_DIR)/rust/$(name)
+		cd servers/$(name) && \
+		$(CARGO) xbuild \
+			--target ../../libs/resea/rust/arch/$(ARCH)/$(ARCH).json \
+			--target-dir ../../$(BUILD_DIR)/rust/$(name) \
+			$(CARGOFLAGS)
+	cp $(BUILD_DIR)/rust/$(name)/$(ARCH)/$(RUST_BUILD)/lib$(name).rlib $@
+
 -include $(shell find $(BUILD_DIR) -name "*.deps" 2>/dev/null)
+-include $(shell find $(BUILD_DIR)/rust -name "*.d" 2>/dev/null)
