@@ -113,7 +113,7 @@ CFLAGS += -DBOOTELF_PATH='"$(BUILD_DIR)/$(bootstrap).elf"'
 CFLAGS += -DBOOTFS_PATH='"$(bootfs_bin)"'
 CFLAGS += -DAUTOSTARTS='"$(autostarts)"'
 
-CARGOFLAGS +=
+CARGOFLAGS += --quiet
 RUSTFLAGS += -C lto -Z emit-stack-sizes -Z external-macro-backtrace
 
 ifdef CONFIG_BUILD_RELEASE
@@ -258,7 +258,7 @@ $(BUILD_DIR)/libs/%.lib.o:
 #
 #  Server build rules
 #
-rust_objs = $(if $(1),$(BUILD_DIR)/$(2).rlib,)
+rust_objs = $(if $(1),$(BUILD_DIR)/$(2).a,)
 define server-build-rule
 $(eval dir := servers/$(1))
 $(eval name :=)
@@ -315,15 +315,16 @@ $(BUILD_DIR)/%.elf: $(BUILD_DIR)/%.debug.elf ./tools/embed-bootelf-header.py
 	./tools/embed-bootelf-header.py --name=$(name) $(@)
 
 # Rust
-$(BUILD_DIR)/%.rlib:
+$(BUILD_DIR)/%.a:
 	$(PROGRESS) "CARGO" servers/$(name)
 	mkdir -p $(BUILD_DIR)/rust/$(name)
 		cd servers/$(name) && \
+		PROGRAM_NAME="$(name)" \
 		$(CARGO) xbuild \
 			--target ../../libs/resea/rust/arch/$(ARCH)/$(ARCH).json \
 			--target-dir ../../$(BUILD_DIR)/rust/$(name) \
 			$(CARGOFLAGS)
-	cp $(BUILD_DIR)/rust/$(name)/$(ARCH)/$(RUST_BUILD)/lib$(name).rlib $@
+	cp $(BUILD_DIR)/rust/$(name)/$(ARCH)/$(RUST_BUILD)/lib$(name).a $@
 
 -include $(shell find $(BUILD_DIR) -name "*.deps" 2>/dev/null)
 -include $(shell find $(BUILD_DIR)/rust -name "*.d" 2>/dev/null)

@@ -7,7 +7,7 @@
     "target-c-int-width": "32",
     "arch": "x86_64",
     "relocation-model": "static",
-    "os": "none",
+    "os": "resea",
     "features": "-mmx,-sse,+soft-float",
     "panic-strategy": "abort",
     "executables": true,
